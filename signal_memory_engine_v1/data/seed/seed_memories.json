@@ -1,0 +1,22 @@
+[
+    {
+      "agent": "Axis",
+      "content": "User stopped responding in Slack after asking a vulnerable question.",
+      "tags": ["ghosting", "friction", "tone shift"]
+    },
+    {
+      "agent": "Oria",
+      "content": "Standup reports reduced from 3 sentences to 1 word each over last 4 days.",
+      "tags": ["withdrawal", "resignation-signal"]
+    },
+    {
+      "agent": "M",
+      "content": "Pattern: User defaults to silence when stressed. Historical alignment issues with authority figures.",
+      "tags": ["shadow-pattern", "cognitive drift"]
+    },
+    {
+      "agent": "Axis",
+      "content": "After feedback, user increased emoji use but dropped sentence clarity.",
+      "tags": ["tone mask", "emotional misalignment"]
+    }
+  ]
