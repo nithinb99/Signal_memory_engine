@@ -80,7 +80,7 @@ async def llm_call(prompt: str) -> str:
         json={
             "inputs": prompt,
             "parameters": {
-                "temperature": 0.7,
+                "temperature": 0.1,
                 "max_new_tokens": 256,
             },
         },

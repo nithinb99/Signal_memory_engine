@@ -107,7 +107,7 @@ def main():
         tokenizer=tokenizer,
         device=device,
         max_new_tokens=256,
-        temperature=0.7,
+        temperature=0.1,
     )
 
     # b) Wrap in LangChain
