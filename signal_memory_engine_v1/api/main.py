@@ -2,101 +2,93 @@
 # api/main.py
 
 """
-FastAPI server wrapping your RAG pipeline via Hugging Face Inference API
-for zero-local-ML, low-latency queries.
+FastAPI server wrapping your RAG pipeline via OpenAI + Pinecone,
+with core logic factored into build_qa_chain and init_pinecone_index,
+and a multi-agent endpoint for agent-to-agent handoff.
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 import os
-from fastapi import FastAPI, HTTPException
+import logging
+from typing import Dict
+
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from dotenv import load_dotenv
-import pinecone
-import httpx
 
-from langchain.chains import RetrievalQA
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Pinecone as LC_Pinecone
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+# pull in our refactored pipeline builders
+from scripts.langchain_retrieval import build_qa_chain
+from vector_store import init_pinecone_index
+from vector_store.embeddings import get_embedder
 
-# ── 1) Load env & init Pinecone ────────────────────────────
-load_dotenv()
+# pre-built per-agent RetrievalQA chains + stores + role names
+from agents.axis_agent import qa_axis,     store_axis,     ROLE_AXIS
+from agents.oria_agent import qa_oria,     store_oria,     ROLE_ORIA
+from agents.m_agent    import qa_sentinel, store_sentinel, ROLE_SENTINEL
+
+# ── Configure logging ─────────────────────────────────────
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+# ── 1) Load env ───────────────────────────────────────────
+logger.debug("Loading environment variables")
+
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENV     = os.getenv("PINECONE_ENV", "us-east-1")
-INDEX_NAME       = os.getenv("PINECONE_INDEX", "signal-engine")
-HF_TOKEN         = os.getenv("HUGGINGFACEHUB_API_TOKEN")
-if not PINECONE_API_KEY or not HF_TOKEN:
-    raise RuntimeError("Set PINECONE_API_KEY and HUGGINGFACEHUB_API_TOKEN in .env")
+PINECONE_ENV     = os.getenv("PINECONE_ENV",     "us-east-1")
+INDEX_NAME       = os.getenv("PINECONE_INDEX",   "signal-engine")
+OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY")
+if not PINECONE_API_KEY or not OPENAI_API_KEY:
+    logger.error("Missing Pinecone or OpenAI API key")
+    raise RuntimeError("Set PINECONE_API_KEY and OPENAI_API_KEY in .env")
 
-# Monkey-patch Pinecone for langchain-community
-if not hasattr(pinecone, "__version__"):
-    pinecone.__version__ = "3.0.0"
-pc = pinecone.Pinecone(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
-from pinecone.db_data.index import Index as PineconeIndexClass
-pinecone.Index = PineconeIndexClass
-
-# ── 2) HTTP client for HF inference ─────────────────────────
-hf_headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-async_client = httpx.AsyncClient(headers=hf_headers)
-
-# ── 3) Embedder via HF Inference ───────────────────────────
-# Note: HF Inference embedding endpoint for sentence-transformers…
-EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-async def embed_text(text: str) -> list[float]:
-    resp = await async_client.post(
-        f"https://api-inference.huggingface.co/pipeline/feature-extraction/{EMBED_MODEL}",
-        json={"inputs": text},
-        timeout=30.0,
-    )
-    resp.raise_for_status()
-    # HF returns list of token vectors; average them
-    vecs = resp.json()
-    # if shape [tokens][dim], average:
-    import statistics
-    return [statistics.mean(col) for col in zip(*vecs)]
-
-# Wrap into a LangChain-compatible embedder
-embeddings = HuggingFaceEmbeddings(
-    client=async_client,       # passes through to HF
-    model_name=EMBED_MODEL,
-    encode_kwargs={"normalize_embeddings": True},
-)
-
-# ── 4) Vector store & retriever ────────────────────────────
-vectorstore = LC_Pinecone.from_existing_index(
-    embedding=embeddings,
+# ── 2) Init the _default_ Pinecone index for one-off queries ──────────────────────
+# (you may still need this for the /query endpoint)
+logger.debug("Initializing Pinecone index via helper")
+init_pinecone_index(
+    api_key=PINECONE_API_KEY,
+    environment=PINECONE_ENV,
     index_name=INDEX_NAME,
-    text_key="content",
+    dimension=384,      # match your existing index
+    metric="cosine",
 )
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+logger.debug("Pinecone index '%s' ready", INDEX_NAME)
 
-# ── 5) Generation via HF Inference “text2text-generation” endpoint ───────────
-# Switch to a free, instruction-tuned Flan-T5 model
-GEN_MODEL = "google-t5/t5-base"
+# ── 3) Prepare embeddings (if needed elsewhere) ─────────────────────────────────
+embeddings = get_embedder(
+    openai_api_key=OPENAI_API_KEY,
+    model="text-embedding-ada-002",           # <-- use `model`, not `model_name`
+)
 
-async def llm_call(prompt: str) -> str:
-    resp = await async_client.post(
-        # Use the explicitly-named pipeline endpoint for seq2seq
-        f"https://api-inference.huggingface.co/models/{GEN_MODEL}",
-        json={
-            "inputs": prompt,
-            "parameters": {
-                "temperature": 0.1,
-                "max_new_tokens": 256,
-            },
-        },
-        timeout=60.0,
-    )
-    resp.raise_for_status()
-    # “text2text-generation” returns a list of strings
-    return resp.json()[0]["generated_text"].strip()
-# ── 6) RAG helper ───────────────────────────────────────────
-async def rag_answer(query: str, k: int = 3) -> str:
-    docs = retriever.get_relevant_documents(query)
-    context = "\n\n".join(d.page_content for d in docs[:k])
-    prompt  = f"Use the context below to answer the question.\n\nContext:\n{context}\n\nQuestion:\n{query}"
-    return await llm_call(prompt)
+# ── 4) Build your “default” QA chain + store for backwards compatibility ────────
+logger.debug("Building default QA chain via build_qa_chain()")
+qa, vectorstore = build_qa_chain(
+    pinecone_api_key=PINECONE_API_KEY,
+    pinecone_env=PINECONE_ENV,
+    index_name=INDEX_NAME,
+    openai_api_key=OPENAI_API_KEY,
+    embed_model="sentence-transformers/all-MiniLM-L6-v2",
+    llm_model="gpt-3.5-turbo",
+)
+logger.debug("Default QA chain and vectorstore ready")
 
-# ── 7) FastAPI wiring ──────────────────────────────────────
+# ── 5) Flagging logic ──────────────────────────────────────
+def flag_from_score(score: float) -> str:
+    if score > 0.8:
+        return "concern"
+    if score > 0.5:
+        return "drifting"
+    return "stable"
+
+SUGGESTIONS = {
+    "stable":   "No action needed.",
+    "drifting": "Consider sending a check-in message.",
+    "concern":  "Recommend escalation or a one-on-one conversation."
+}
+
+# ── 6) FastAPI wiring ─────────────────────────────────────
 app = FastAPI(title="Signal Memory RAG API")
 
 class QueryRequest(BaseModel):
@@ -110,14 +102,82 @@ class Chunk(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     chunks: list[Chunk]
+    flag: str
+    suggestion: str
 
+# ── Single‐agent endpoint ──────────────────────────────────
 @app.post("/query", response_model=QueryResponse)
-async def query_endpoint(req: QueryRequest):
+def query_endpoint(req: QueryRequest):
+    logger.debug("Received /query request: %s", req)
     try:
-        answer = await rag_answer(req.query, req.k)
+        answer = qa.run(req.query)
     except Exception as e:
+        logger.exception("Error during RAG run")
         raise HTTPException(status_code=500, detail=str(e))
 
-    docs_and_scores = vectorstore.similarity_search_with_score(req.query, k=req.k)
-    chunks = [Chunk(content=d.page_content, score=s) for d, s in docs_and_scores]
-    return QueryResponse(answer=answer, chunks=chunks)
+    hits = vectorstore.similarity_search_with_score(req.query, k=req.k)
+    top_score = max((s for (_, s) in hits), default=0.0)
+    flag       = flag_from_score(top_score)
+    suggestion = SUGGESTIONS[flag]
+    chunks     = [Chunk(content=d.page_content, score=s) for d, s in hits]
+
+    return QueryResponse(
+        answer=answer,
+        chunks=chunks,
+        flag=flag,
+        suggestion=suggestion
+    )
+
+# ── per‐agent response schema ──────────────────────────────
+class AgentResponse(BaseModel):
+    answer: str
+    chunks: list[Chunk]
+    flag: str
+    suggestion: str
+
+class MultiQueryResponse(BaseModel):
+    agents: Dict[str, AgentResponse]
+
+# def notify_human_loop(query: str, agents: list[str]) -> None:
+#     """
+#     Background task that sends a handoff notification to a human
+#     or to another endpoint/service.
+#     """
+#     # e.g. POST to your escalation service:
+#     import httpx
+#     payload = {"query": query, "agents": agents}
+#     httpx.post("https://your-escalation-endpoint.example/handoff", json=payload, timeout=5.0)
+
+# ── 7) Multi‐agent fan‐out endpoint ────────────────────────
+@app.post("/multi_query", response_model=MultiQueryResponse)
+def multi_query(req: QueryRequest, bg: BackgroundTasks):
+    logger.debug("Received /multi_query request: %s", req)
+    out: Dict[str, AgentResponse] = {}
+
+    for role, qa_chain, store in (
+        (ROLE_AXIS,     qa_axis,     store_axis),
+        (ROLE_ORIA,     qa_oria,     store_oria),
+        (ROLE_SENTINEL, qa_sentinel, store_sentinel),
+    ):
+        ans = qa_chain.run(req.query)
+        docs_and_scores = store.similarity_search_with_score(req.query, k=req.k)
+        top_score = max((s for (_, s) in docs_and_scores), default=0.0)
+        flag      = flag_from_score(top_score)
+        suggestion = SUGGESTIONS[flag]
+        chunks    = [Chunk(content=d.page_content, score=s) for d, s in docs_and_scores]
+
+        out[role] = AgentResponse(
+            answer=ans,
+            chunks=chunks,
+            flag=flag,
+            suggestion=suggestion,
+        )
+
+    # 1) Check if any agent flagged “concern”
+    high_agents = [role for role, resp in out.items() if resp.flag == "concern"]
+    if high_agents:
+        logger.warning("High-severity detected from %s – kicking off handoff", high_agents)
+        # 2) Schedule background notification
+        # bg.add_task(notify_human_loop, req.query, high_agents)
+
+    return MultiQueryResponse(agents=out)

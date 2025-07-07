@@ -2,25 +2,21 @@
 """
 scripts/langchain_retrieval.py
 
-Interactive RetrievalQA pipeline using LangChain, a local HuggingFace LLM,
-and your Pinecone vector store, with compatibility patches for the community adapter.
-Includes memory-chunk scoring, stable/drifting/concern flags, and simple suggestions.
+Module to build and return a RetrievalQA chain and Pinecone vectorstore,
+with helper functions for signal-flag scoring and suggestions.
 """
 
-import os
-import torch
-from dotenv import load_dotenv
-
 import pinecone
-from langchain_community.llms import HuggingFacePipeline
 from langchain.chains import RetrievalQA
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Pinecone as LC_Pinecone
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain.chat_models import ChatOpenAI
+
 
 def flag_from_score(score: float) -> str:
     """
-    Convert a similarity score (0–1) into a flag.
+    Convert a similarity score (0–1) into a signal flag.
     """
     if score > 0.8:
         return "concern"
@@ -29,109 +25,73 @@ def flag_from_score(score: float) -> str:
     else:
         return "stable"
 
+
 SUGGESTIONS = {
     "stable":   "No action needed.",
     "drifting": "Consider sending a check-in message.",
     "concern":  "Recommend escalation or a one-on-one conversation."
 }
 
-def format_and_print(query: str, vectorstore, k: int = 3):
+
+def build_qa_chain(
+    pinecone_api_key: str,
+    pinecone_env: str,
+    index_name: str,
+    openai_api_key: str,
+    embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    llm_model: str = "gpt-3.5-turbo",
+    k: int = 3,
+) -> tuple[RetrievalQA, LC_Pinecone]:
     """
-    Retrieve top-k chunks + scores, then print them along with a flag and suggestion.
+    Initialize Pinecone, embeddings, vectorstore, and a RetrievalQA chain using OpenAI or HF-ST.
+
+    Returns:
+        qa_chain: LangChain RetrievalQA
+        vectorstore: Pinecone vector store client
     """
-    docs_and_scores = vectorstore.similarity_search_with_score(query, k=k)
-    if not docs_and_scores:
-        print("⚠️  No memories found for that query.")
-        return
-
-    # Determine overall flag from the highest score
-    top_score = max(score for (_, score) in docs_and_scores)
-    flag      = flag_from_score(top_score)
-    suggestion = SUGGESTIONS[flag]
-
-    # Print the raw hits
-    print(f"\nTop {k} memory chunks (score):")
-    for doc, score in docs_and_scores:
-        print(f" • [{score:.3f}] {doc.page_content.strip()}")
-
-    # Print flag & suggestion
-    print(f"\n>>> Flag:       {flag.upper()}")
-    print(f">>> Suggestion: {suggestion}\n{'-'*40}")
-
-
-def main():
-    # 1) Load environment variables
-    load_dotenv()
-    PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-    PINECONE_ENV     = os.getenv("PINECONE_ENV", "us-east-1")
-    INDEX_NAME       = os.getenv("PINECONE_INDEX", "signal-engine")
-    HF_TOKEN         = os.getenv("HUGGINGFACEHUB_API_TOKEN")
-
-    if not PINECONE_API_KEY:
-        raise RuntimeError("Missing PINECONE_API_KEY environment variable")
-
-    # 2) Monkey-patch Pinecone for LangChain compatibility
+    # 1) Monkey-patch Pinecone
     if not hasattr(pinecone, "__version__"):
         pinecone.__version__ = "3.0.0"
-    pc = pinecone.Pinecone(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
+    pc = pinecone.Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
     from pinecone.db_data.index import Index as PineconeIndexClass
-
     pinecone.Index = PineconeIndexClass
 
-    # 3) Prepare your embedding model
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    embeddings = HuggingFaceEmbeddings(
-        model_name="all-MiniLM-L6-v2",
-        model_kwargs={"device": device}
-    )
+   # 2) Set up OpenAI embeddings (pass only `model`, let it read your API key from env)
+    embeddings = OpenAIEmbeddings(model=embed_model)
+    if embed_model.startswith("sentence-transformers/") or embed_model.startswith("all-"):
+        embeddings = HuggingFaceEmbeddings(
+            model_name=embed_model,
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True},
+        )
+    else:
+        embeddings = OpenAIEmbeddings(
+            model=embed_model,                 # e.g. "text-embedding-ada-002"
+            openai_api_key=openai_api_key,
+            encode_kwargs={"normalize_embeddings": True},
+        )
 
-    # 4) Connect to your existing Pinecone index
+    # 3) Connect to existing Pinecone index
     vectorstore = LC_Pinecone.from_existing_index(
         embedding=embeddings,
-        index_name=INDEX_NAME,
+        index_name=index_name,
         text_key="content"
     )
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": k})
 
-   # 5) Load Flan-T5 (fully open & instruction-tuned)
-    MODEL_NAME = "google-t5/t5-base"
-    device = "cpu"  # or 0 for your GPU
-
-    # a) Load the seq2seq model & tokenizer once at startup
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model     = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
-
-    text_gen = pipeline(
-        "text2text-generation",   # NOTE: use text2text for T5
-        model=model,
-        tokenizer=tokenizer,
-        device=device,
-        max_new_tokens=256,
-        temperature=0.1,
+   # 4) Initialize OpenAI LLM
+    llm = ChatOpenAI(
+        openai_api_key=openai_api_key,
+        model_name=llm_model,
+        temperature=0.7,
+        max_tokens=256
     )
 
-    # b) Wrap in LangChain
-    llm = HuggingFacePipeline(pipeline=text_gen)
-    # 7) Build the RetrievalQA chain
-    qa = RetrievalQA.from_chain_type(
+    # 5) Build RetrievalQA chain
+    qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
         retriever=retriever
     )
 
-    # 8) Interactive prompt loop with flags & suggestions
-    print("Local RAG + Signal Flags ready. Type 'exit' to quit.")
-    while True:
-        query = input("\nQuery> ").strip()
-        if query.lower() in {"exit", "quit"}:
-            break
-
-        # 8a) LLM answer
-        answer = qa.invoke(query)
-        print(f"\nLLM Answer:\n{answer}\n{'='*40}")
-
-        # 8b) Raw memory hits + flag & suggestion
-        format_and_print(query, vectorstore, k=3)
-
-if __name__ == "__main__":
-    main()
+    return qa_chain, vectorstore

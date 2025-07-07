@@ -2,43 +2,43 @@
 
 import os
 from pinecone import Pinecone, ServerlessSpec
-from sentence_transformers import SentenceTransformer
 
-# ─── 1. Environment & Config ─────────────────────────────
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENV     = os.getenv("PINECONE_ENV", "us-east-1")
-INDEX_NAME       = os.getenv("PINECONE_INDEX", "signal-engine")
+def init_pinecone_index(
+    api_key: str,
+    environment: str,
+    index_name: str,
+    dimension: int,
+    metric: str = "cosine",
+    cloud: str = "aws",
+):
+    """
+    Ensure a Pinecone index exists with the given name, dimension, and metric.
+    If an existing index has the wrong dimension, it will be deleted and recreated.
+    Returns a live Index client.
+    """
+    # 1) instantiate Pinecone client
+    pc = Pinecone(api_key=api_key, environment=environment)
 
-if not PINECONE_API_KEY:
-    raise RuntimeError("Missing PINECONE_API_KEY in environment variables")
+    # 2) list existing indexes
+    existing = pc.list_indexes().names()
 
-# ─── 2. Determine the correct embed dim ───────────────────
-_model    = SentenceTransformer("all-MiniLM-L6-v2")
-EMBED_DIM = _model.get_sentence_embedding_dimension()  # → 384
+    # 3) if exists but wrong dim, delete
+    if index_name in existing:
+        desc = pc.describe_index(name=index_name)
+        if desc.dimension != dimension:
+            print(f"Index '{index_name}' exists with dimension={desc.dimension}, expected={dimension}. Recreating.")
+            pc.delete_index(name=index_name)
+            existing.remove(index_name)
 
-# ─── 3. Init Pinecone client ──────────────────────────────
-pc = Pinecone(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
+    # 4) create if missing
+    if index_name not in existing:
+        print(f"Creating index '{index_name}' (dim={dimension}, metric={metric})")
+        pc.create_index(
+            name=index_name,
+            dimension=dimension,
+            metric=metric,
+            spec=ServerlessSpec(cloud=cloud, region=environment),
+        )
 
-# ─── 4. Ensure Index Exists with Correct Dim ──────────────
-existing = pc.list_indexes().names()
-if INDEX_NAME in existing:
-    # Check its dimension
-    desc = pc.describe_index(name=INDEX_NAME)
-    current_dim = desc.dimension
-    if current_dim != EMBED_DIM:
-        # Delete & recreate if dimensions mismatch
-        print(f"Index '{INDEX_NAME}' exists with dim={current_dim}, expected {EMBED_DIM}. Recreating.")
-        pc.delete_index(name=INDEX_NAME)
-        existing.remove(INDEX_NAME)
-# Create if still missing
-if INDEX_NAME not in existing:
-    pc.create_index(
-        name=INDEX_NAME,
-        dimension=EMBED_DIM,
-        metric="cosine",
-        spec=ServerlessSpec(cloud="aws", region=PINECONE_ENV)
-    )
-    print(f"Created index '{INDEX_NAME}' with dimension {EMBED_DIM}")
-
-# ─── 5. Expose the live index client ──────────────────────
-index = pc.Index(INDEX_NAME)
+    # 5) return the Index client
+    return pc.Index(index_name)
