@@ -126,18 +126,18 @@ Use the sidebar to configure your backend URL, endpoint (/query vs. /multi_query
 
 #### Project Structure
 
-├── api
-│   └── main.py             # FastAPI application
-├── scripts
-│   └── langchain_retrieval.py  # build_qa_chain helper
-├── vector_store
-│   ├── embeddings.py       # get_embedder utility
-│   ├── pinecone_index.py   # init_pinecone_index helper
-│   └── __init__.py
-├── agents
-│   ├── axis_agent.py       # Axis™ agent chain & store
-│   ├── oria_agent.py       # Oria™ agent chain & store
-│   └── m_agent.py          # Shadow Sentinel agent chain & store
-├── streamlit_app.py        # Sample Streamlit frontend
-├── requirements.txt        # Python dependencies
-└── README.md               # This file
+	├── api
+	│   └── main.py             # FastAPI application
+	├── scripts
+	│   └── langchain_retrieval.py  # build_qa_chain helper
+	├── vector_store
+	│   ├── embeddings.py       # get_embedder utility
+	│   ├── pinecone_index.py   # init_pinecone_index helper
+	│   └── __init__.py
+	├── agents
+	│   ├── axis_agent.py       # Axis™ agent chain & store
+	│   ├── oria_agent.py       # Oria™ agent chain & store
+	│   └── m_agent.py          # Shadow Sentinel agent chain & store
+	├── streamlit_app.py        # Sample Streamlit frontend
+	├── requirements.txt        # Python dependencies
+	└── README.md               # This file
