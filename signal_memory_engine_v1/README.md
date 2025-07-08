@@ -44,12 +44,12 @@ A conversational Retrieval-Augmented Generation (RAG) microservice powered by Fa
 
 Create a .env file in the project root with the following variables:
 
-PINECONE_API_KEY=<your-pinecone-api-key>
-PINECONE_ENV=<your-pinecone-environment>
-PINECONE_INDEX=<your-index-name>
-OPENAI_API_KEY=<your-openai-api-key>
+	PINECONE_API_KEY=<your-pinecone-api-key>
+	PINECONE_ENV=<your-pinecone-environment>
+	PINECONE_INDEX=<your-index-name>
+	OPENAI_API_KEY=<your-openai-api-key>
 
-	•	PINECONE_INDEX default is signal-engine.
+PINECONE_INDEX default is signal-engine.
 
 ⸻
 
@@ -66,48 +66,47 @@ The API will be available at http://127.0.0.1:8000.
 #### Endpoints
 
 Single-Agent RAG
-	•	POST /query
-	•	Body:
+POST /query
+Body:
 
-{
-  "query": "Your question here",
-  "k": 3
-}
+		{
+		  "query": "Your question here",
+		  "k": 3
+		}
 
+Response:
 
-	•	Response:
-
-{
-  "answer": "...GPT-generated answer...",
-  "chunks": [
-    {"content": "chunk text...", "score": 0.73},
-    ...
-  ],
-  "flag": "stable", // or "drifting" / "concern"
-  "suggestion": "No action needed."
-}
+	{
+	  "answer": "...GPT-generated answer...",
+	  "chunks": [
+	    {"content": "chunk text...", "score": 0.73},
+	    ...
+	  ],
+	  "flag": "stable", // or "drifting" / "concern"
+	  "suggestion": "No action needed."
+	}
 
 
 
 Multi-Agent Fan-Out
-	•	POST /multi_query
-	•	Body:
+POST /multi_query
+Body:
 
-{
-  "query": "Your question here",
-  "k": 3
-}
+	{
+	  "query": "Your question here",
+	  "k": 3
+	}
 
 
-	•	Response:
+Response:
 
-{
-  "agents": {
-    "Axis™ Relationship Architect": { /* AgentResponse */ },
-    "Oria™ HR Oracle": { /* AgentResponse */ },
-    "M™ Shadow Sentinel": { /* AgentResponse */ }
-  }
-}
+	{
+	  "agents": {
+	    "Axis™ Relationship Architect": { /* AgentResponse */ },
+	    "Oria™ HR Oracle": { /* AgentResponse */ },
+	    "M™ Shadow Sentinel": { /* AgentResponse */ }
+	  }
+	}
 
 
 
@@ -115,7 +114,7 @@ Each AgentResponse contains the same fields as the single-agent response.
 
 ⸻
 
-Streamlit UI
+#### Streamlit UI
 
 A sample streamlit_app.py is provided in the project root. To run the UI:
 
@@ -125,7 +124,7 @@ Use the sidebar to configure your backend URL, endpoint (/query vs. /multi_query
 
 ⸻
 
-Project Structure
+#### Project Structure
 
 ├── api
 │   └── main.py             # FastAPI application
