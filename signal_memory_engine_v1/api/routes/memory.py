@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from vector_store.pinecone_index import index
-from vector_store.embeddings      import get_embedding
+from vector_store.embeddings      import get_embedder
 
 router = APIRouter()
 
@@ -21,7 +21,7 @@ def query_memory(
 ):
     # 1) Embed the query
     try:
-        q_vec = get_embedding(q)
+        q_vec = get_embedder(q)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Embed error: {e}")
 
