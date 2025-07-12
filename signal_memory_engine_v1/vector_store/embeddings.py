@@ -4,8 +4,8 @@ import hashlib
 from textwrap import wrap
 from typing import List
 
-# --- LangChain-compatible OpenAI Embeddings Builder ---
-from langchain_community.embeddings import OpenAIEmbeddings
+# LangChain-compatible OpenAI Embeddings Builder
+from langchain_openai import OpenAIEmbeddings
 
 def get_embedder(model: str, openai_api_key: str):
     """
@@ -20,7 +20,7 @@ def get_embedder(model: str, openai_api_key: str):
         openai_api_key=openai_api_key
     )
 
-# --- Legacy local embeddings (optional) ---
+# Legacy local embeddings
 from sentence_transformers import SentenceTransformer
 
 _default_model = SentenceTransformer("all-MiniLM-L6-v2")  # dim=384

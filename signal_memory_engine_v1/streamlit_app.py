@@ -1,7 +1,32 @@
 import streamlit as st
 import requests
+import matplotlib.pyplot as plt
 
-# Basic Streamlit UI for Signal Memory RAG backend
+# Basic Streamlit UI for Signal Memory RAG backend with drift visualization
+
+def plot_drift(scores: dict):
+    """
+    Create a radial bar chart showing each agent's top similarity score using matplotlib.
+    """
+    labels = list(scores.keys())
+    values = list(scores.values())
+    N = len(values)
+
+    # create a polar subplot
+    fig = plt.figure()
+    ax = fig.add_subplot(projection="polar")
+
+    # compute bar angles and widths
+    angles = [n / float(N) * 2 * 3.14159265 for n in range(N)]
+    width = 2 * 3.14159265 / N
+
+    ax.bar(angles, values, width=width)
+    ax.set_xticks(angles)
+    ax.set_xticklabels(labels)
+    ax.set_title("Agent Drift Scores", pad=20)
+    plt.tight_layout()
+    return fig
+
 
 def main():
     st.title("Signal Memory RAG Interface")
@@ -12,7 +37,7 @@ def main():
     k = st.sidebar.slider("Number of chunks (k)", min_value=1, max_value=10, value=3)
 
     st.header("Enter your query")
-    query = st.text_area("", height=100)
+    query = st.text_area("Enter your question:", height=100)
 
     if st.button("Submit"):
         if not query.strip():
@@ -44,9 +69,18 @@ def main():
             st.markdown(f"**Flag:** {data.get('flag', '')}")
             st.markdown(f"**Suggestion:** {data.get('suggestion', '')}")
 
+            # Delta: show drift gauge for single agent
+            top_score = max((c['score'] for c in data.get('chunks', [])), default=0.0)
+            st.subheader("Drift Gauge")
+            fig = plot_drift({mode: top_score})
+            st.pyplot(fig)
+
         else:
             st.subheader("Multi-Agent Responses")
             agents = data.get("agents", {})
+
+            # Collect per-agent top scores
+            drift_scores = {}
             for role, result in agents.items():
                 st.markdown(f"### {role}")
                 st.markdown(f"**Answer:** {result.get('answer', '')}")
@@ -57,6 +91,16 @@ def main():
 
                 st.markdown(f"**Flag:** {result.get('flag', '')}")
                 st.markdown(f"**Suggestion:** {result.get('suggestion', '')}")
+
+                # top score for this agent
+                top = max((c['score'] for c in result.get('chunks', [])), default=0.0)
+                drift_scores[role] = top
+
+            # Plot drift radial chart
+            st.subheader("Drift Visualization")
+            fig = plot_drift(drift_scores)
+            st.pyplot(fig)
+
 
 if __name__ == "__main__":
     main()

@@ -7,11 +7,19 @@ with helper functions for signal-flag scoring and suggestions.
 """
 
 import pinecone
+import logging
 from langchain.chains import RetrievalQA
 from langchain_community.vectorstores import Pinecone as LC_Pinecone
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
+
+# ── Configure logging ─────────────────────────────────────
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 def flag_from_score(score: float) -> str:
@@ -56,8 +64,7 @@ def build_qa_chain(
     from pinecone.db_data.index import Index as PineconeIndexClass
     pinecone.Index = PineconeIndexClass
 
-   # 2) Set up OpenAI embeddings (pass only `model`, let it read your API key from env)
-    embeddings = OpenAIEmbeddings(model=embed_model)
+    # 2) Set up embeddings: HF-ST for sentence-transformers, OpenAI for ADA
     if embed_model.startswith("sentence-transformers/") or embed_model.startswith("all-"):
         embeddings = HuggingFaceEmbeddings(
             model_name=embed_model,
@@ -66,7 +73,7 @@ def build_qa_chain(
         )
     else:
         embeddings = OpenAIEmbeddings(
-            model=embed_model,                 # e.g. "text-embedding-ada-002"
+            model=embed_model,
             openai_api_key=openai_api_key,
             encode_kwargs={"normalize_embeddings": True},
         )
@@ -79,19 +86,20 @@ def build_qa_chain(
     )
     retriever = vectorstore.as_retriever(search_kwargs={"k": k})
 
-   # 4) Initialize OpenAI LLM
+    # 4) Initialize OpenAI LLM
     llm = ChatOpenAI(
         openai_api_key=openai_api_key,
         model_name=llm_model,
         temperature=0.7,
-        max_tokens=256
+        max_tokens=256,
     )
 
-    # 5) Build RetrievalQA chain
+    # 5) Build a standard RetrievalQA chain (default prompt only needs a single string)
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
-        retriever=retriever
+        retriever=retriever,
     )
+    logger.debug("QA chain initialized with default prompt template")
 
     return qa_chain, vectorstore
