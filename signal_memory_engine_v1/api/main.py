@@ -12,9 +12,10 @@ from dotenv import load_dotenv
 load_dotenv()
 import os
 import logging
-from typing import Dict
+from typing import Dict, List
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
+import httpx
 
 # pull in our refactored pipeline builders
 from scripts.langchain_retrieval import build_qa_chain
@@ -90,18 +91,19 @@ SUGGESTIONS = {
 }
 
 # ── Hand off helper ───────────────────────────────────────
-def notify_human_loop(query: str, agents: list[str]) -> None:
+def notify_human_loop(query: str, agents: List[str]) -> None:
     """
     Send an HTTP handoff to your escalation service.
     """
-    import httpx
     payload = {"query": query, "agents": agents}
-    # replace with your real escalation URL
-    httpx.post(
-        "https://your-escalation-endpoint.example/handoff",
-        json=payload,
-        timeout=5.0,
-    )
+    try:
+        httpx.post(
+            "https://your-escalation-endpoint.example/handoff",
+            json=payload,
+            timeout=5.0,
+        )
+    except Exception as e:
+        logger.error("Failed to notify human loop: %s", e)
 
 # ── 6) FastAPI wiring ─────────────────────────────────────
 app = FastAPI(title="Signal Memory RAG API")
@@ -116,7 +118,7 @@ class Chunk(BaseModel):
 
 class QueryResponse(BaseModel):
     answer: str
-    chunks: list[Chunk]
+    chunks: List[Chunk]
     flag: str
     suggestion: str
 
@@ -157,7 +159,7 @@ def query_endpoint(req: QueryRequest):
 
 class AgentResponse(BaseModel):
     answer: str
-    chunks: list[Chunk]
+    chunks: List[Chunk]
     flag: str
     suggestion: str
 
@@ -178,6 +180,7 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
         (ROLE_ORIA,     qa_oria,     store_oria),
         (ROLE_SENTINEL, qa_sentinel, store_sentinel),
     ):
+        # build per-agent prompt
         system_prefix = (
             "Current biometric readings:\n"
             f"• HRV: {signals['hrv']:.1f} ms\n"
@@ -187,13 +190,21 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
         )
         combined = f"{system_prefix}\n\nQuestion: {req.query}"
 
+        # 1) QA + graceful error handling
         try:
             ans = qa_chain.run(combined)
         except Exception as e:
-            logger.exception("Agent %s QA failed", role)
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error("Agent %s QA failed, skipping: %s", role, e)
+            out[role] = AgentResponse(
+                answer="(error during processing)",
+                chunks=[],
+                flag="stable",
+                suggestion="No action (agent failed)"
+            )
+            continue
 
-        raw_hits      = vectorstore.similarity_search_with_score(req.query, k=req.k)
+        # 2) Agent‐specific memory hits
+        raw_hits      = store.similarity_search_with_score(req.query, k=req.k)
         logger.debug("%s returned %d hits", role, len(raw_hits))
         memory_events = map_events_to_memory(raw_hits)
         top_score     = max((evt["score"] for evt in memory_events), default=0.0)
@@ -203,10 +214,10 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
 
         out[role] = AgentResponse(answer=ans, chunks=chunks, flag=flag, suggestion=suggestion)
 
-    # If any agent is at concern, schedule handoff
+    # 3) If any agent flags “concern”, trigger handoff
     high_agents = [role for role, resp in out.items() if resp.flag == "concern"]
     if high_agents:
-        logger.warning("High-severity detected from %s - kicking off handoff", high_agents)
+        logger.warning("High-severity detected from %s – kicking off handoff", high_agents)
         bg.add_task(notify_human_loop, req.query, high_agents)
 
     return MultiQueryResponse(agents=out)

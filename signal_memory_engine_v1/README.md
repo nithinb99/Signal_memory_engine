@@ -1,143 +1,202 @@
-### Signal Memory Engine
+# Signal Memory Engine v1
 
-A conversational Retrieval-Augmented Generation (RAG) microservice powered by FastAPI, OpenAI, Pinecone, and LangChain, with multi-agent handoff functionality and a Streamlit UI.
+A conversational Retrieval-Augmented Generation (RAG) microservice powered by FastAPI, OpenAI, Pinecone, and LangChain. Features multi-agent handoff logic, biometric signal context, event-to-memory mapping, and a Streamlit UI for visualization.
 
-⸻
+---
 
-#### Features
-	•	Single-agent RAG: Query your memory index via /query endpoint, powered by a RetrievalQA chain using OpenAI’s GPT-3.5-Turbo and Pinecone vector store.
-	•	Multi-agent fan-out: Automatically route queries to three specialized agents—Axis™ Relationship Architect, Oria™ HR Oracle, and M™ Shadow Sentinel—via /multi_query endpoint, each returning an answer, top memory chunks, a stability flag, and a suggestion.
-	•	Agent-to-Agent Handoff: High-severity flags can trigger custom workflows or escalate to human-in-the-loop endpoints.
-	•	Streamlit UI: Lightweight frontend to interact with both single- and multi-agent endpoints.
+## Features
 
-⸻
+* **Single-Agent RAG**: Query a memory index via the `/query` endpoint, using a RetrievalQA chain with OpenAI’s GPT models and Pinecone vector store.
+* **Multi-Agent Fan-Out**: Route queries to three specialized agents—Axis™ Relationship Architect, Oria™ HR Oracle, and M™ Shadow Sentinel—via the `/multi_query` endpoint. Each agent returns an answer, top memory chunks, a stability flag, and a suggestion.
+* **Biometric Context**: Simulate HRV, temperature, and blink rate readings and inject them into queries to enrich system context.
+* **Event-to-Memory Mapping**: Normalize raw RAG hits into structured events (ID, content, score, timestamp, metadata) via Coherence Commons.
+* **Agent-to-Agent Handoff**: Automatically escalate high-severity flags by notifying a human-in-the-loop endpoint.
+* **Streamlit UI**: Interactive frontend (`streamlit_app.py`) that shows answers, memory chunks, flags, suggestions, and drift visualizations per agent.
 
-#### Table of Contents
-	•	Prerequisites
-	•	Installation
-	•	Configuration
-	•	Running the API
-	•	Endpoints
-	•	Streamlit UI
-	•	Project Structure
+---
 
-⸻
+## Table of Contents
 
-#### Prerequisites
-	•	Python 3.9+
-	•	A Pinecone account (API key & environment)
-	•	An OpenAI account (API key)
+1. [Prerequisites](#prerequisites)
+2. [Installation](#installation)
+3. [Configuration](#configuration)
+4. [Running the API](#running-the-api)
+5. [Endpoints](#endpoints)
+6. [Streamlit UI](#streamlit-ui)
+7. [Project Structure](#project-structure)
 
-⸻
+---
 
-#### Installation
-	1.	Clone this repository: git clone https://github.com/your-org/signal-memory-engine.git
-      cd signal-memory-engine
-	2.	Create and activate a virtual environment:
-      python -m venv venv
-      source venv/bin/activate
-	3.	Install dependencies:
-      pip install -r requirements.txt
-⸻
+## Prerequisites
 
-#### Configuration
+* Python 3.9+
+* Pinecone account (API key & environment)
+* OpenAI account (API key)
 
-Create a .env file in the project root with the following variables:
+---
 
-	PINECONE_API_KEY=<your-pinecone-api-key>
-	PINECONE_ENV=<your-pinecone-environment>
-	PINECONE_INDEX=<your-index-name>
-	OPENAI_API_KEY=<your-openai-api-key>
+## Installation
 
-PINECONE_INDEX default is signal-engine.
+```bash
+# Clone repository
+git clone https://github.com/your-org/signal_memory_engine_v1.git
+cd signal_memory_engine_v1
 
-⸻
+# Create & activate virtual environment
+python -m venv venv
+source venv/bin/activate
 
-#### Running the API
+# Install dependencies
+pip install -r requirements.txt
+```
 
-Start the FastAPI server:
+---
 
+## Configuration
+
+Create a `.env` file in the project root:
+
+```ini
+PINECONE_API_KEY=<your-pinecone-api-key>
+PINECONE_ENV=<your-pinecone-environment>
+PINECONE_INDEX=<your-pinecone-index-name>
+OPENAI_API_KEY=<your-openai-api-key>
+```
+
+* `PINECONE_INDEX` defaults to `signal-engine` if unset.
+
+---
+
+## Running the API
+
+```bash
+# Start FastAPI server with live reload
 uvicorn api.main:app --reload
+```
 
-The API will be available at http://127.0.0.1:8000.
+The API will run at `http://127.0.0.1:8000`.
 
-⸻
+---
 
-#### Endpoints
+## Endpoints
 
-Single-Agent RAG
-POST /query
-Body:
+### Single-Agent RAG
 
-		{
-		  "query": "Your question here",
-		  "k": 3
-		}
+**POST** `/query`
 
-Response:
+**Request Body**:
 
-	{
-	  "answer": "...GPT-generated answer...",
-	  "chunks": [
-	    {"content": "chunk text...", "score": 0.73},
-	    ...
-	  ],
-	  "flag": "stable", // or "drifting" / "concern"
-	  "suggestion": "No action needed."
-	}
+```json
+{
+  "query": "Your question here",
+  "k": 3
+}
+```
 
+**Response**:
 
+```json
+{
+  "answer": "...",
+  "chunks": [
+    {"content": "...", "score": 0.72},
+    ...
+  ],
+  "flag": "stable",    
+  "suggestion": "No action needed."
+}
+```
 
-Multi-Agent Fan-Out
-POST /multi_query
-Body:
+### Multi-Agent Fan-Out
 
-	{
-	  "query": "Your question here",
-	  "k": 3
-	}
+**POST** `/multi_query`
 
+**Request Body**:
 
-Response:
+```json
+{
+  "query": "Your question here",
+  "k": 3
+}
+```
 
-	{
-	  "agents": {
-	    "Axis™ Relationship Architect": { /* AgentResponse */ },
-	    "Oria™ HR Oracle": { /* AgentResponse */ },
-	    "M™ Shadow Sentinel": { /* AgentResponse */ }
-	  }
-	}
+**Response**:
 
+```json
+{
+  "agents": {
+    "Axis™ Relationship Architect": { /* AgentResponse */ },
+    "Oria™ HR Oracle":           { /* AgentResponse */ },
+    "M™ Shadow Sentinel":         { /* AgentResponse */ }
+  }
+}
+```
 
+Each `AgentResponse` matches the single-agent response schema.
 
-Each AgentResponse contains the same fields as the single-agent response.
+---
 
-⸻
+## Streamlit UI
 
-#### Streamlit UI
+Run the Streamlit app:
 
-A sample streamlit_app.py is provided in the project root. To run the UI:
-
+```bash
 streamlit run streamlit_app.py
+```
 
-Use the sidebar to configure your backend URL, endpoint (/query vs. /multi_query), and k. Enter your query in the main panel and submit to see answers, memory chunks, flags, and suggestions.
+The sidebar allows you to configure:
 
-⸻
+* **Backend URL** (e.g. `http://localhost:8000`)
+* **Mode**: Single-Agent vs. Multi-Agent
+* **Number of chunks (k)**
 
-#### Project Structure
+Submit a query to see answers, chunks, flags, suggestions, and drift visualizations.
 
-	├── api
-	│   └── main.py             # FastAPI application
-	├── scripts
-	│   └── langchain_retrieval.py  # build_qa_chain helper
-	├── vector_store
-	│   ├── embeddings.py       # get_embedder utility
-	│   ├── pinecone_index.py   # init_pinecone_index helper
+---
+
+## Project Structure
+
+```
+	signal_memory_engine_v1/
+	├── api/
+	│   ├── routes/
+	│   │   ├── memory.py          # Memory query router
+	│   │   ├── search.py          # Generic search router
+	│   │   └── __init__.py
+	│   └── main.py                # FastAPI application
+	├── agents/
+	│   ├── axis_agent.py          # Axis™ Relationship Architect chain & store
+	│   ├── oria_agent.py          # Oria™ HR Oracle chain & store
+	│   ├── m_agent.py             # M™ Shadow Sentinel chain & store
 	│   └── __init__.py
-	├── agents
-	│   ├── axis_agent.py       # Axis™ agent chain & store
-	│   ├── oria_agent.py       # Oria™ agent chain & store
-	│   └── m_agent.py          # Shadow Sentinel agent chain & store
-	├── streamlit_app.py        # Sample Streamlit frontend
-	├── requirements.txt        # Python dependencies
-	└── README.md               # This file
+	├── coherence/
+	│   └── commons.py             # Event-to-memory mapping utilities
+	├── ingestion/
+	│   ├── batch_loader.py        # Data ingestion helpers
+	│   └── __init__.py
+	├── processing/
+	│   ├── normalizer.py          # Stream processing helper
+	│   ├── stream_processor.py    # Real-time event processor
+	│   └── __init__.py
+	├── sensors/
+	│   └── biometric.py           # Simulated biometric readings
+	├── scripts/
+	│   ├── langchain_retrieval.py # build_qa_chain & vectorstore setup
+	│   ├── smoke_test.py          # Quick pipeline sanity check
+	│   ├── seed_data.py           # Sample data seeding script
+	│   └── __init__.py
+	├── vector_store/
+	│   ├── embeddings.py          # Embedding factory
+	│   ├── pinecone_index.py      # Pinecone index initialization
+	│   └── __init__.py
+	├── core.py                    # Legacy RAG builder (optional)
+	├── requirements.txt           # Python dependencies
+	├── starter.sh                 # Helper script to launch the service
+	├── streamlit_app.py           # Streamlit frontend
+	├── generate_structure.sh      # Project scaffolding script
+	└── README.md                  # Project documentation
+```
+
+---
+
+Contributions, issues, and PRs are welcome!
