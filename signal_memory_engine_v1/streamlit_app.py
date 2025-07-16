@@ -12,11 +12,9 @@ def plot_drift(scores: dict):
     values = list(scores.values())
     N = len(values)
 
-    # create a polar subplot
     fig = plt.figure()
     ax = fig.add_subplot(projection="polar")
 
-    # compute bar angles and widths
     angles = [n / float(N) * 2 * 3.14159265 for n in range(N)]
     width = 2 * 3.14159265 / N
 
@@ -26,6 +24,19 @@ def plot_drift(scores: dict):
     ax.set_title("Agent Drift Scores", pad=20)
     plt.tight_layout()
     return fig
+
+
+def display_flag(flag: str, suggestion: str):
+    """
+    Show flag with color coding and suggestion.
+    """
+    if flag == "stable":
+        st.success(f"Flag: {flag}")
+    elif flag == "drifting":
+        st.warning(f"Flag: {flag}")
+    else:  # concern
+        st.error(f"Flag: {flag}")
+    st.write(f"Suggestion: {suggestion}")
 
 
 def main():
@@ -56,7 +67,7 @@ def main():
             st.error(f"Request failed: {e}")
             return
 
-        # Display results
+        # Single-Agent
         if mode == "Single-Agent":
             st.subheader("Answer")
             st.write(data.get("answer", ""))
@@ -66,37 +77,37 @@ def main():
                 st.markdown(f"- **{chunk['score']:.3f}**: {chunk['content']}")
 
             st.subheader("Flag & Suggestion")
-            st.markdown(f"**Flag:** {data.get('flag', '')}")
-            st.markdown(f"**Suggestion:** {data.get('suggestion', '')}")
+            display_flag(data.get("flag", ""), data.get("suggestion", ""))
 
-            # Delta: show drift gauge for single agent
+            # Drift Gauge
             top_score = max((c['score'] for c in data.get('chunks', [])), default=0.0)
             st.subheader("Drift Gauge")
             fig = plot_drift({mode: top_score})
             st.pyplot(fig)
 
+        # Multi-Agent
         else:
             st.subheader("Multi-Agent Responses")
             agents = data.get("agents", {})
-
-            # Collect per-agent top scores
             drift_scores = {}
+
             for role, result in agents.items():
                 st.markdown(f"### {role}")
-                st.markdown(f"**Answer:** {result.get('answer', '')}")
+
+                st.markdown("**Answer:**")
+                st.write(result.get("answer", ""))
 
                 st.markdown("**Chunks & Scores:**")
-                for chunk in result.get('chunks', []):
+                for chunk in result.get("chunks", []):
                     st.markdown(f"- **{chunk['score']:.3f}**: {chunk['content']}")
 
-                st.markdown(f"**Flag:** {result.get('flag', '')}")
-                st.markdown(f"**Suggestion:** {result.get('suggestion', '')}")
+                st.markdown("**Flag & Suggestion:**")
+                display_flag(result.get("flag", ""), result.get("suggestion", ""))
 
-                # top score for this agent
+                # collect for drift chart
                 top = max((c['score'] for c in result.get('chunks', [])), default=0.0)
                 drift_scores[role] = top
 
-            # Plot drift radial chart
             st.subheader("Drift Visualization")
             fig = plot_drift(drift_scores)
             st.pyplot(fig)

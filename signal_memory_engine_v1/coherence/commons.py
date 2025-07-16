@@ -4,7 +4,7 @@ Common utilities for mapping RAG hits (Document, score) pairs into normalized ev
 """
 import hashlib
 from datetime import datetime
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 
 from langchain.schema import Document
 
@@ -33,17 +33,39 @@ def normalize_timestamp(ts: Any) -> str:
         return str(ts)
 
 
+def flag_from_score(score: float) -> str:
+    """
+    Convert a similarity score (0–1) into a signal flag.
+    """
+    if score > 0.8:
+        return "concern"
+    elif score > 0.5:
+        return "drifting"
+    else:
+        return "stable"
+
+SUGGESTIONS = {
+    "stable":   "No action needed.",
+    "drifting": "Consider sending a check-in message.",
+    "concern":  "Recommend escalation or a one-on-one conversation."
+}
+
+
 def map_events_to_memory(
-    docs_and_scores: List[Tuple[Document, float]]
+    docs_and_scores: List[Tuple[Document, float]],
+    source_agent: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Convert a list of (Document, score) into a list of normalized event dictionaries.
 
     Each event will include:
-      - id: unique hash
+      - event_id: unique hash
       - content: the document page_content
       - score: the similarity score
+      - source_agent: name of the agent that produced this hit (if provided)
       - timestamp: if present in document.metadata (normalized)
+      - tags: list of flags (e.g., "stable", "drifting", "concern")
+      - suggestion: action suggestion based on the flag
       - metadata: other metadata fields, if any
     """
     events: List[Dict[str, Any]] = []
@@ -52,11 +74,18 @@ def map_events_to_memory(
         ts_raw = meta.get("timestamp")
         timestamp = normalize_timestamp(ts_raw) if ts_raw is not None else None
 
+        flag = flag_from_score(score)
+        suggestion = SUGGESTIONS.get(flag, "")
+
         event: Dict[str, Any] = {
-            "id": generate_event_id(doc.page_content, timestamp or ""),
+            "event_id": generate_event_id(doc.page_content, timestamp or ""),
             "content": doc.page_content.strip(),
             "score": score,
+            "tags": [flag],
+            "suggestion": suggestion,
         }
+        if source_agent:
+            event["source_agent"] = source_agent
         if timestamp:
             event["timestamp"] = timestamp
         # include any other metadata

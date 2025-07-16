@@ -4,8 +4,10 @@
 """
 FastAPI server wrapping your RAG pipeline via OpenAI + Pinecone,
 with multi-agent endpoints, biometrics context, event‐to‐memory mapping,
-JSON trace logging, and human‐in‐the‐loop escalation.
+JSON trace logging, human‐in‐the‐loop escalation—and now a /memory_log
+endpoint for replaying the last N trace records.
 """
+
 from dotenv import load_dotenv
 load_dotenv()
 import os
@@ -15,8 +17,9 @@ import uuid
 from datetime import datetime
 from typing import Dict, List
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from pydantic import BaseModel
+
 import httpx
 
 # response models
@@ -25,6 +28,7 @@ from api.models import (
     QueryResponse,
     BaseAgentResponse as AgentResponse,
     MultiQueryResponse,
+    MemoryEvent,
 )
 
 # core pipeline builders
@@ -116,6 +120,9 @@ def trace_log(agent: str, query: str, flag: str, score: float, request_id: str) 
 
 # ── 7) Human‐in‐the‐loop escalation helper ──────────────────
 def notify_human_loop(query: str, agents: List[str]) -> None:
+    """
+    Send an HTTP handoff to your escalation service.
+    """
     payload = {"query": query, "agents": agents}
     try:
         httpx.post(
@@ -133,6 +140,8 @@ class QueryRequest(BaseModel):
     query: str
     k: int = 3
 
+# ——————————————————————————————————————————————————————
+# Single-agent endpoint
 @app.post("/query", response_model=QueryResponse)
 def query_endpoint(req: QueryRequest):
     request_id = uuid.uuid4().hex
@@ -160,12 +169,12 @@ def query_endpoint(req: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
     # d) memory hits → events → scoring
-    raw_hits      = vectorstore.similarity_search_with_score(req.query, k=req.k)
-    events        = map_events_to_memory(raw_hits)
-    top_score     = max((e["score"] for e in events), default=0.0)
-    flag          = flag_from_score(top_score)
-    suggestion    = SUGGESTIONS[flag]
-    chunks        = [Chunk(content=e["content"], score=e["score"]) for e in events]
+    raw_hits  = vectorstore.similarity_search_with_score(req.query, k=req.k)
+    events    = map_events_to_memory(raw_hits)
+    top_score = max((e["score"] for e in events), default=0.0)
+    flag      = flag_from_score(top_score)
+    suggestion = SUGGESTIONS[flag]
+    chunks    = [Chunk(content=e["content"], score=e["score"]) for e in events]
 
     # e) tracelog & respond
     trace_log("single-agent", req.query, flag, top_score, request_id)
@@ -177,6 +186,8 @@ def query_endpoint(req: QueryRequest):
         trust_score=top_score,
     )
 
+# ——————————————————————————————————————————————————————
+# Multi-agent fan-out endpoint
 @app.post("/multi_query", response_model=MultiQueryResponse)
 def multi_query(req: QueryRequest, bg: BackgroundTasks):
     request_id = uuid.uuid4().hex
@@ -193,7 +204,7 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
         (ROLE_SENTINEL, qa_sentinel, store_sentinel),
     ):
         # per-agent prompt
-        prefix = (
+        prefix      = (
             "Current biometric readings:\n"
             f"• HRV: {signals['hrv']:.1f} ms\n"
             f"• Temp: {signals['temperature']:.1f} °C\n"
@@ -218,12 +229,12 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
             continue
 
         # memory hits → events → scoring
-        raw_hits      = store.similarity_search_with_score(req.query, k=req.k)
-        events        = map_events_to_memory(raw_hits)
-        top_score     = max((e["score"] for e in events), default=0.0)
-        flag          = flag_from_score(top_score)
-        suggestion    = SUGGESTIONS[flag]
-        chunks        = [Chunk(content=e["content"], score=e["score"]) for e in events]
+        raw_hits  = store.similarity_search_with_score(req.query, k=req.k)
+        events    = map_events_to_memory(raw_hits)
+        top_score = max((e["score"] for e in events), default=0.0)
+        flag      = flag_from_score(top_score)
+        suggestion = SUGGESTIONS[flag]
+        chunks    = [Chunk(content=e["content"], score=e["score"]) for e in events]
 
         out[role] = AgentResponse(
             answer=ans,
@@ -242,3 +253,27 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
 
     # c) return aggregated responses
     return MultiQueryResponse(agents=out)
+
+# ——————————————————————————————————————————————————————
+# New!  Memory-log endpoint for downstream replay/analytics
+@app.get("/memory_log", response_model=List[MemoryEvent])
+def memory_log(limit: int = Query(10, ge=1, le=100, description="Number of records to return")):
+    """
+    Return the last <limit> JSON-trace records for memory-event analysis.
+    """
+    try:
+        with open(TRACE_LOG_FILE, "r") as f:
+            lines = f.read().strip().splitlines()
+    except FileNotFoundError:
+        return []
+
+    raw = [json.loads(line) for line in lines]
+    # take the last `limit` entries, then map into MemoryEvent pydantic models
+    recent = raw[-limit:]
+    return [MemoryEvent(**{
+        "id":      rec["request_id"],
+        "content": rec["query"],
+        "score":   rec["trust_score"],
+        "timestamp": rec["timestamp"],
+        "metadata": {"agent": rec["agent"], "flag": rec["flag"]},
+    }) for rec in recent]
