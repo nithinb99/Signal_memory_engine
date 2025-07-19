@@ -21,14 +21,13 @@ from pathlib import Path
 
 import httpx
 import mlflow
-# enable OpenAI autologging if plugin is available
+# enable full autologging
 mlflow.autolog()
 try:
     import mlflow.openai
     mlflow.openai.autolog()
 except ImportError:
-    mlflow.logger = logging.getLogger('mlflow')
-    mlflow.logger.warning("mlflow-openai plugin not installed; skipping OpenAI autolog.")
+    mlflow.get_logger().warning("mlflow-openai plugin not installed; skipping OpenAI autolog.")
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
@@ -195,13 +194,13 @@ def query_endpoint(req: QueryRequest):
     logger.debug("Received /query [%s]: %s", request_id, req)
 
     with mlflow.start_run(run_name=f"single-{request_id}"):
-        # inputs
+        # ── inputs ─────────────────────────────
         mlflow.log_param("query", req.query)
-        mlflow.log_param("k", req.k)
+        mlflow.log_param("k",     req.k)
         mlflow.log_param("embed_model", EMBED_MODEL)
-        mlflow.log_param("llm_model", LLM_MODEL)
+        mlflow.log_param("llm_model",   LLM_MODEL)
 
-        # biometrics
+        # ── biometrics ──────────────────────────
         signals = sample_all_signals()
         mlflow.log_metric("hrv",         signals.get("hrv", 0))
         mlflow.log_metric("temperature", signals.get("temperature", 0))
@@ -211,7 +210,7 @@ def query_endpoint(req: QueryRequest):
         if "emotion_label" in signals:
             mlflow.log_param("emotion_label", signals["emotion_label"])
 
-        # build & log prompt
+        # ── build & log prompt ───────────────────
         prefix = (
             "Current biometric readings:\n"
             f"• HRV: {signals['hrv']:.1f} ms\n"
@@ -223,14 +222,14 @@ def query_endpoint(req: QueryRequest):
         mlflow.log_param("prompt", full_prompt)
         mlflow.log_text(full_prompt, "prompt.txt")
 
-        # RAG
+        # ── run RAG ─────────────────────────────
         try:
             answer = qa.run(full_prompt)
         except Exception as e:
             logger.exception("Error during RAG run [%s]", request_id)
             raise HTTPException(status_code=500, detail=str(e))
 
-        # retrieval & scoring
+        # ── retrieve & score ─────────────────────
         raw_hits  = vectorstore.similarity_search_with_score(req.query, k=req.k)
         events    = map_events_to_memory(raw_hits)
         top_score = max((e['score'] for e in events), default=0.0)
@@ -238,20 +237,25 @@ def query_endpoint(req: QueryRequest):
         suggestion= SUGGESTIONS[flag]
         chunks    = [Chunk(content=e['content'], score=e['score']) for e in events]
 
-        # log metrics & outputs
+        # ── log core metrics & outputs ───────────
         mlflow.log_metric("top_score",   top_score)
         mlflow.log_metric("num_chunks",  len(raw_hits))
         mlflow.log_param( "flag",        flag)
         mlflow.log_param( "suggestion",  suggestion)
         mlflow.log_text(answer, "answer.txt")
 
-        # new event flags
+        # ── new event flags ──────────────────────
         emo_rec = int(any(e.get("emotional_recursion_present") for e in events))
         reroute = int(any(e.get("rerouting_triggered") for e in events))
         mlflow.log_param("emotional_recursion_detected", emo_rec)
         mlflow.log_param("rerouting_triggered", reroute)
 
-        # latency & derived flags
+        # ── Chad_confidence & escalation_level ────
+        mlflow.log_metric("chad_confidence_score", top_score)
+        esc_level = 1 if flag == "concern" else 0
+        mlflow.log_param("escalation_level", esc_level)
+
+        # ── latency & derived flags ──────────────
         elapsed_ms = (time.time() - start_ts) * 1000
         mlflow.log_metric("endpoint_latency_ms",     elapsed_ms)
         mlflow.log_param( "coherence_drift_detected", int(flag != "stable"))
@@ -259,11 +263,11 @@ def query_endpoint(req: QueryRequest):
 
     trace_log("single-agent", req.query, flag, top_score, request_id)
     return QueryResponse(
-        answer=answer,
-        chunks=chunks,
-        flag=flag,
-        suggestion=suggestion,
-        trust_score=top_score,
+        answer       = answer,
+        chunks       = chunks,
+        flag         = flag,
+        suggestion   = suggestion,
+        trust_score  = top_score,
     )
 
 @app.post("/multi_query", response_model=MultiQueryResponse)
@@ -273,13 +277,13 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
     logger.debug("Received /multi_query [%s]: %s", request_id, req)
 
     with mlflow.start_run(run_name=f"multi-{request_id}"):
-        # inputs
-        mlflow.log_param("query",     req.query)
-        mlflow.log_param("k",         req.k)
+        # ── inputs ─────────────────────────────
+        mlflow.log_param("query", req.query)
+        mlflow.log_param("k",     req.k)
         mlflow.log_param("embed_model", EMBED_MODEL)
         mlflow.log_param("llm_model",   LLM_MODEL)
 
-        # biometrics
+        # ── biometrics ──────────────────────────
         signals = sample_all_signals()
         mlflow.log_metric("hrv",         signals.get("hrv", 0))
         mlflow.log_metric("temperature", signals.get("temperature", 0))
@@ -289,7 +293,7 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
         if "emotion_label" in signals:
             mlflow.log_param("emotion_label", signals["emotion_label"])
 
-        # build & log shared prompt
+        # ── build & log shared prompt ────────────
         prefix = (
             "Current biometric readings:\n"
             f"• HRV: {signals['hrv']:.1f} ms\n"
@@ -301,6 +305,7 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
         mlflow.log_param("prompt", full_prompt)
         mlflow.log_text(full_prompt, "prompt.txt")
 
+        # ── per-agent QA + logging ───────────────
         out: Dict[str, AgentResponse] = {}
         for role, qa_chain, store in (
             (ROLE_AXIS,     qa_axis,     store_axis),
@@ -312,13 +317,8 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
                 ans = qa_chain.run(full_prompt)
             except Exception as e:
                 logger.error("Agent %s failed [%s]: %s", role, request_id, e)
-                out[role] = AgentResponse(
-                    answer="(error)",
-                    chunks=[],
-                    flag="stable",
-                    suggestion="No action",
-                    trust_score=0.0,
-                )
+                out[role] = AgentResponse(answer="(error)", chunks=[], flag="stable",
+                                           suggestion="No action", trust_score=0.0)
                 trace_log(role, req.query, "stable", 0.0, request_id)
                 mlflow.log_param(f"{safe}_flag",       "stable")
                 mlflow.log_metric(f"{safe}_top_score", 0.0)
@@ -331,35 +331,38 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
             suggestion= SUGGESTIONS[flag]
             chunks    = [Chunk(content=e["content"], score=e["score"]) for e in events]
 
-            out[role] = AgentResponse(
-                answer=ans,
-                chunks=chunks,
-                flag=flag,
-                suggestion=suggestion,
-                trust_score=top_score,
-            )
+            out[role] = AgentResponse(answer=ans, chunks=chunks,
+                                      flag=flag, suggestion=suggestion,
+                                      trust_score=top_score)
             trace_log(role, req.query, flag, top_score, request_id)
 
-            # sanitized MLflow keys
             mlflow.log_param( f"{safe}_flag",        flag)
             mlflow.log_param( f"{safe}_suggestion",  suggestion)
-            mlflow.log_metric(f"{safe}_top_score",  top_score)
-            mlflow.log_metric(f"{safe}_num_chunks", len(raw_hits))
+            mlflow.log_metric(f"{safe}_top_score",   top_score)
+            mlflow.log_metric(f"{safe}_num_chunks",  len(raw_hits))
             mlflow.log_text(ans, f"{safe}_answer.txt")
 
-        # capture cross‐agent event flags
+        # ── cross-agent outcome flags ─────────────
         emo_rec_multi = int(any(e.get("emotional_recursion_present") for e in events))
         reroute_multi = int(any(e.get("rerouting_triggered")           for e in events))
         mlflow.log_param("emotional_recursion_detected", emo_rec_multi)
         mlflow.log_param("rerouting_triggered",          reroute_multi)
 
-        # endpoint latency & derived flags
-        elapsed_ms = (time.time() - start_ts) * 1000
-        mlflow.log_metric("endpoint_latency_ms",       elapsed_ms)
-        mlflow.log_param( "coherence_drift_detected", int(any(r.flag != "stable" for r in out.values())))
-        mlflow.log_param( "escalation_triggered",     int(any(r.flag == "concern" for r in out.values())))
+        # ── Chad_confidence & escalation_level ────
+        avg_conf = sum(r.trust_score for r in out.values()) / (len(out) or 1)
+        mlflow.log_metric("chad_confidence_score", avg_conf)
+        esc_level = len([r for r in out.values() if r.flag == "concern"])
+        mlflow.log_param("escalation_level", esc_level)
 
-    # human escalation if needed
+        # ── latency & derived flags ──────────────
+        elapsed_ms = (time.time() - start_ts) * 1000
+        mlflow.log_metric("endpoint_latency_ms", elapsed_ms)
+        mlflow.log_param("coherence_drift_detected",
+                         int(any(r.flag != "stable" for r in out.values())))
+        mlflow.log_param("escalation_triggered",
+                         int(any(r.flag == "concern" for r in out.values())))
+
+    # ── human escalation if needed ─────────────
     high_agents = [r for r, resp in out.items() if resp.flag == "concern"]
     if high_agents:
         bg.add_task(notify_human_loop, req.query, high_agents)
