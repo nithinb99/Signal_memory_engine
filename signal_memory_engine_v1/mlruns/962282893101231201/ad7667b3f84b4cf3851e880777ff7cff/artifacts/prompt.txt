@@ -1,0 +1,8 @@
+Current biometric readings:
+• HRV: 62.7 ms
+• Temp: 35.7 °C
+• Blink rate: 19.2 bpm
+
+Use this context to answer the question below.
+
+Question: This person has gone silent after performance feedback.

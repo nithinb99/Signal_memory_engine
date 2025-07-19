@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/nithinbhat/Documents/Signal_engine/Signal_memory_engine/signal_memory_engine_v1/mlruns/962282893101231201/88c17d45f3e34a22a29bedba7b9a848c/artifacts
+end_time: 1752885342465
+entry_point_name: ''
+experiment_id: '962282893101231201'
+lifecycle_stage: active
+run_id: 88c17d45f3e34a22a29bedba7b9a848c
+run_name: multi-bc6cd6fb538446d589d5c5f654738daa
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1752885339620
+status: 3
+tags: []
+user_id: nithinbhat

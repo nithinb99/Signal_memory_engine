@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import matplotlib.pyplot as plt
+from dashboard import show_dashboard
 
 # Basic Streamlit UI for Signal Memory RAG backend with drift visualization
 
@@ -40,6 +41,10 @@ def display_flag(flag: str, suggestion: str):
 
 
 def main():
+    page = st.sidebar.radio("Page", ["Interface", "Dashboard"])
+    if page == "Dashboard":
+        show_dashboard()
+        return
     st.title("Signal Memory RAG Interface")
     st.sidebar.header("Settings")
 

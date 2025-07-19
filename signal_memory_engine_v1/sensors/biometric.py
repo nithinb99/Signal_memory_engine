@@ -1,48 +1,72 @@
 # sensors/biometric.py
 """
-Simulated biometric signal stubs for downstream agent processing.
-Provides heart-rate variability (HRV), skin temperature, blink rate, and batch sampling.
+Simulated biometric sampling, including future metrics (GSR) and auto-tagged emotional state.
 """
+import os
 import random
-import time
-import json
-from datetime import datetime
-from pathlib import Path
+from typing import Dict
+import openai
 
-DRIFT_FILE = Path(__file__).parent.parent / "data/drift_simulation.jsonl"
-_drift_events = None
-
-def simulate_hrv() -> float:
-    """Heart-rate variability in milliseconds."""
-    return random.uniform(20.0, 100.0)
+# Load OpenAI key for emotion classification
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
-def simulate_temperature() -> float:
-    """Skin temperature in °C."""
-    return random.uniform(35.5, 37.5)
-
-
-def simulate_blink_rate() -> float:
-    """Blink rate in blinks per minute."""
-    return random.uniform(10.0, 30.0)
-
-def _load_drift():
-    global _drift_events
-    if _drift_events is None:
-        _drift_events = [json.loads(l) for l in open(DRIFT_FILE)]
-    return _drift_events
-
-def sample_all_signals():
+def sample_all_signals() -> Dict[str, any]:
     """
-    Returns either a fresh random stub _or_ the next record from drift_simulation.jsonl.
+    Return a dictionary of current biometric readings, including:
+      - HRV (ms)
+      - Skin temperature (°C)
+      - Blink rate (bpm)
+      - GSR (µS)
+      - emotion_label (auto-tagged)
     """
-    events = _load_drift()
-    # simple rotating cursor
-    idx = int(datetime.utcnow().timestamp()) % len(events)
-    rec = events[idx]
+    # Simulate sensor readings
+    hrv = random.uniform(30.0, 100.0)
+    temperature = random.uniform(35.5, 37.5)
+    blink_rate = random.uniform(10.0, 20.0)
+    # Future biometric: galvanic skin response (µS)
+    gsr = random.uniform(0.1, 10.0)
+
+    # Auto-tag emotion based on readings
+    emotion_label = _detect_emotion_label(hrv, temperature, blink_rate, gsr)
+
     return {
-        "hrv": rec["hrv"],
-        "temperature": rec.get("temperature", 36.5),
-        "blink_rate": rec.get("blink_rate", 15.0),
-        **{"flag_raised": rec.get("flag_raised"), "timestamp": rec.get("timestamp")},
+        "hrv": hrv,
+        "temperature": temperature,
+        "blink_rate": blink_rate,
+        "gsr": gsr,
+        "emotion_label": emotion_label,
     }
+
+
+def _detect_emotion_label(hrv: float, temperature: float, blink_rate: float, gsr: float) -> str:
+    """
+    Use a lightweight OpenAI prompt to classify the user's emotional state given biometric signals.
+    Returns a single-label string (e.g., 'calm', 'anxious', 'stressed', 'happy').
+    """
+    if not OPENAI_API_KEY:
+        return "unknown"
+
+    openai.api_key = OPENAI_API_KEY
+    prompt = (
+        "Based on the following physiological readings, choose one of: calm, anxious, stressed, happy."
+        f"\nHRV: {hrv:.1f} ms"
+        f"\nSkin Temp: {temperature:.1f} °C"
+        f"\nBlink Rate: {blink_rate:.1f} bpm"
+        f"\nGSR: {gsr:.2f} µS"
+    )
+    try:
+        resp = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=5,
+            temperature=0.0,
+        )
+        label = resp.choices[0].text.strip().lower()
+        # sanitize to allowed labels
+        for allowed in ("calm", "anxious", "stressed", "happy"):
+            if allowed in label:
+                return allowed
+    except Exception:
+        pass
+    return "unknown"
