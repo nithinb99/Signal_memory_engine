@@ -1,49 +1,72 @@
-# vector_store/embeddings.py
-
+import os
 import hashlib
 from textwrap import wrap
-from typing import List
+from typing import List, Optional
 
 # LangChain-compatible OpenAI Embeddings Builder
 from langchain_openai import OpenAIEmbeddings
+from langchain.embeddings.base import Embeddings
 
-def get_embedder(model: str, openai_api_key: str):
+# Sentence-Transformers for local embedding
+from sentence_transformers import SentenceTransformer
+
+# ── Configuration ─────────────────────────────────────────
+# Default models and keys
+DEFAULT_EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-ada-002")
+DEFAULT_API_KEY    = os.getenv("OPENAI_API_KEY", "")
+# Toggle source of embeddings: if set, use OpenAI; otherwise use local SentenceTransformer
+USE_OPENAI = os.getenv("USE_OPENAI_EMBEDDINGS") is not None
+
+# ── Initialize local model (384-dim) ────────────────────────
+_local_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# ── OpenAI Embedder Factory ───────────────────────────────
+def get_embedder(model: Optional[str] = None, openai_api_key: Optional[str] = None) -> OpenAIEmbeddings:
     """
     Return a LangChain-compatible OpenAIEmbeddings instance.
 
     Parameters:
-        model: the OpenAI embedding model name, e.g. 'text-embedding-ada-002'.
-        openai_api_key: your OpenAI API key.
+        model: the OpenAI embedding model name, default from env.
+        openai_api_key: your OpenAI API key, default from env.
     """
     return OpenAIEmbeddings(
-        model=model,
-        openai_api_key=openai_api_key
+        model=model or DEFAULT_EMBED_MODEL,
+        openai_api_key=openai_api_key or DEFAULT_API_KEY,
     )
 
-# Legacy local embeddings
-from sentence_transformers import SentenceTransformer
+# ── Unified embedding interface ─────────────────────────────
+def get_embedding(text: str) -> List[float]:
+    """
+    Embed a single text string either locally (384-dim) or via OpenAI (1536-dim),
+    based on the USE_OPENAI flag.
 
-_default_model = SentenceTransformer("all-MiniLM-L6-v2")  # dim=384
+    Returns:
+        A flat list of floats for Pinecone upsert.
+    """
+    if USE_OPENAI:
+        embedder: Embeddings = get_embedder()
+        vector = embedder.embed_query(text)  # type: ignore
+        return list(vector)
+    else:
+        return _local_model.encode(text, show_progress_bar=False).tolist()
 
-
+# ── Legacy local embeddings (explicit) ─────────────────────
 def get_local_embedding(text: str) -> List[float]:
     """
     Embed a single text string locally using SentenceTransformer.
     """
-    return _default_model.encode(text, show_progress_bar=False).tolist()
+    return _local_model.encode(text, show_progress_bar=False).tolist()
 
-
+# ── Chunked local embedding ─────────────────────────────────
 def process_text_to_embeddings(text: str, width: int = 512) -> List[List[float]]:
     """
     Split longer text into fixed-size chunks and embed each chunk locally.
+    Returns a list of embedding vectors.
     """
     chunks = wrap(text, width)
-    return [
-        _default_model.encode(chunk, show_progress_bar=False).tolist()
-        for chunk in chunks
-    ]
+    return [_local_model.encode(chunk, show_progress_bar=False).tolist() for chunk in chunks]
 
-
+# ── Utility ID generator ───────────────────────────────────
 def generate_id_from_text(text: str) -> str:
     """
     Deterministically generate a unique ID for a chunk of text.

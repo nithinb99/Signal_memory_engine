@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/nithinbhat/Documents/Signal_engine/Signal_memory_engine/signal_memory_engine_v1/mlruns/962282893101231201/5b6a64b7851f4de58a56a1bc1f7569b5/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '962282893101231201'
+lifecycle_stage: active
+run_id: 5b6a64b7851f4de58a56a1bc1f7569b5
+run_name: popular-foal-179
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1752853452255
+status: 1
+tags: []
+user_id: nithinbhat
