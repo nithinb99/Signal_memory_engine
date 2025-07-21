@@ -1,0 +1,46 @@
+version: '3.8'
+services:
+  mlflow:
+    image: python:3.10-slim
+    container_name: mlflow
+    command: >
+      sh -c "pip install mlflow &&
+             mkdir -p /mlruns &&
+             mlflow server
+               --backend-store-uri sqlite:///mlflow.db
+               --default-artifact-root /mlruns
+               --host 0.0.0.0
+               --port 5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: backend
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_EXPERIMENT=SignalMemoryEngine
+    depends_on:
+      - mlflow
+    ports:
+      - "8000:8000"
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: ui
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - backend
+      - mlflow
+    ports:
+      - "8501:8501"
