@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any
 
-def route_agent(user_query: str, emotional_tone: float, signal_type: str) -> Dict[str, Any]:
+def route_agent(user_query: str, emotional_tone: float, signal_type: str, drift_score: float) -> Dict[str, Any]:
     """
     Decide which agent should handle the incoming query based on emotional tone and signal type.
 
@@ -19,6 +19,8 @@ def route_agent(user_query: str, emotional_tone: float, signal_type: str) -> Dic
     # Routing rules
     if emotional_tone > 0.7:
         return {"selected_agent": "Axis", "reason": "High emotional tone"}
+    if drift_score > 0.5:
+        return {"selected_agent": "M", "reason": "High drift score"}
     if signal_type.lower() == "compliance":
         return {"selected_agent": "M", "reason": "Compliance signal"}
     if signal_type.lower() in ["biometric", "relational"]:
@@ -48,11 +50,12 @@ if __name__ == "__main__":
     # Quick manual tests
     tests = [
         ("Why is my team so tense?", 0.9, "relational"),
+        ("Data drift detected", 0.2, "relational", 0.6),
         ("Is this legally allowed?", 0.3, "compliance"),
         ("What’s our next meeting?", 0.4, "general")
     ]
-    for query, tone, sig in tests:
-        decision = route_agent(query, tone, sig)
+    for query, tone, sig, drift in tests:
+        decision = route_agent(query, tone, sig, drift)
         print(query, "->", decision)
         log_routing_decision(decision)
     print("Manual tests completed. Logs written to router_log.jsonl.")
