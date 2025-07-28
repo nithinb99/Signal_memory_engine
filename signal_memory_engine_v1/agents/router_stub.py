@@ -21,8 +21,11 @@ def route_agent(user_query: str, emotional_tone: float, signal_type: str) -> Dic
         return {"selected_agent": "Axis", "reason": "High emotional tone"}
     if signal_type.lower() == "compliance":
         return {"selected_agent": "M", "reason": "Compliance signal"}
-    # Default case
-    return {"selected_agent": "Oria", "reason": "Default routing"}
+    if signal_type.lower() in ["biometric", "relational"]:
+        return {"selected_agent": "Oria", "reason": f"Signal type '{signal_type}'"}
+
+    # Fallback if no conditions match
+    return {"selected_agent": "Selah", "reason": "Fallback routing"}
 
 
 def log_routing_decision(decision: Dict[str, Any], logfile: str = "router_log.jsonl") -> None:

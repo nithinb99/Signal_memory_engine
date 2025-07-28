@@ -14,20 +14,24 @@ def test_m_compliance():
     assert decision["selected_agent"] == "M"
     assert "Compliance" in decision["reason"]
 
-
-def test_oria_default():
-    decision = route_agent("What’s our next meeting?", emotional_tone=0.4, signal_type="general")
+@pytest.mark.parametrize("signal", ["relational", "biometric"])
+def test_oria_signal_types(signal):
+    decision = route_agent("Sample query", emotional_tone=0.1, signal_type=signal)
     assert decision["selected_agent"] == "Oria"
-    assert "Default" in decision["reason"]
+    assert f"Signal type '{signal}'" in decision["reason"]
+
+
+def test_selah_fallback():
+    decision = route_agent("Unknown signal", emotional_tone=0.1, signal_type="unknown")
+    assert decision["selected_agent"] == "Selah"
+    assert "Fallback routing" in decision["reason"]
 
 
 def test_logging(tmp_path):
-    # Use a temporary log file to avoid side effects
-    log_file = tmp_path / "router_log.jsonl"
     decision = {"selected_agent": "Axis", "reason": "High emotional tone"}
+    log_file = tmp_path / "router_log.jsonl"
     log_routing_decision(decision, logfile=str(log_file))
 
-    # Read and verify the logged entry
     lines = log_file.read_text().splitlines()
     assert len(lines) == 1, "Expected one log entry"
     entry = json.loads(lines[-1])
