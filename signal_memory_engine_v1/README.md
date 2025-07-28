@@ -158,43 +158,48 @@ Submit a query to see answers, chunks, flags, suggestions, and drift visualizati
 
 ```
 	signal_memory_engine_v1/
+	├── setup.py                     # Package install script
+	├── __init__.py                  # Top-level package marker
 	├── api/
 	│   ├── routes/
-	│   │   ├── memory.py          # Memory query router
-	│   │   ├── search.py          # Generic search router
+	│   │   ├── memory.py            # Memory query router
+	│   │   ├── search.py            # Generic search router
 	│   │   └── __init__.py
-	│   └── main.py                # FastAPI application
+	│   └── main.py                  # FastAPI application
 	├── agents/
-	│   ├── axis_agent.py          # Axis™ Relationship Architect chain & store
-	│   ├── oria_agent.py          # Oria™ HR Oracle chain & store
-	│   ├── m_agent.py             # M™ Shadow Sentinel chain & store
+	│   ├── axis_agent.py            # Axis™ Relationship Architect chain & store
+	│   ├── oria_agent.py            # Oria™ HR Oracle chain & store
+	│   ├── m_agent.py               # M™ Shadow Sentinel chain & store
+	│   ├── router_stub.py           # Lightweight agent router prototype
 	│   └── __init__.py
 	├── coherence/
-	│   └── commons.py             # Event-to-memory mapping utilities
+	│   └── commons.py               # Event-to-memory mapping utilities
 	├── ingestion/
-	│   ├── batch_loader.py        # Data ingestion helpers
+	│   ├── batch_loader.py          # Data ingestion helpers
 	│   └── __init__.py
 	├── processing/
-	│   ├── normalizer.py          # Stream processing helper
-	│   ├── stream_processor.py    # Real-time event processor
+	│   ├── normalizer.py            # Stream processing helper
+	│   ├── stream_processor.py      # Real-time event processor
 	│   └── __init__.py
 	├── sensors/
-	│   └── biometric.py           # Simulated biometric readings
+	│   └── biometric.py             # Simulated biometric readings
 	├── scripts/
-	│   ├── langchain_retrieval.py # build_qa_chain & vectorstore setup
-	│   ├── smoke_test.py          # Quick pipeline sanity check
-	│   ├── seed_data.py           # Sample data seeding script
+	│   ├── langchain_retrieval.py   # build_qa_chain & vectorstore setup
+	│   ├── smoke_test.py            # Quick pipeline sanity check
+	│   ├── seed_data.py             # Sample data seeding script
 	│   └── __init__.py
 	├── vector_store/
-	│   ├── embeddings.py          # Embedding factory
-	│   ├── pinecone_index.py      # Pinecone index initialization
+	│   ├── embeddings.py            # Embedding factory
+	│   ├── pinecone_index.py        # Pinecone index initialization
 	│   └── __init__.py
-	├── core.py                    # Legacy RAG builder (optional)
-	├── requirements.txt           # Python dependencies
-	├── starter.sh                 # Helper script to launch the service
-	├── streamlit_app.py           # Streamlit frontend
-	├── generate_structure.sh      # Project scaffolding script
-	└── README.md                  # Project documentation
+	├── core.py                      # Legacy RAG builder (optional)
+	├── requirements.txt             # Python dependencies
+	├── starter.sh                   # Helper script to launch the service
+	├── streamlit_app.py             # Streamlit frontend
+	├── generate_structure.sh        # Project scaffolding script
+	├── tests/
+	│   └── test_router_stub.py      # Pytest suite for router_stub
+	└── README.md                    # Project documentation
 ```
 
 ---
