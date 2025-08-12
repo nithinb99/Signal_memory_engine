@@ -1,6 +1,66 @@
 import json
+import os
 from datetime import datetime
 from typing import Any, Dict
+# from storage.sqlite_store import init_db, insert_event
+# from utils.dashboard import send_to_dashboard
+from signal_memory_engine_v1.storage.sqlite_store import init_db, insert_event
+from signal_memory_engine_v1.utils.dashboard import send_to_dashboard
+
+DB_PATH = os.getenv("SME_DB_PATH", "./data/signal.db")
+init_db(DB_PATH)
+
+def route_and_log_event(
+    user_id: str,
+    user_query: str,
+    emotional_tone: float,
+    signal_type: str,
+    drift_score: float,
+    payload: dict | None = None,
+    relationship_context: str | None = None,
+    diagnostic_notes: str | None = None,
+    logfile: str = "router_log.jsonl",
+) -> dict:
+    """
+    Route the event, persist it to SQLite, keep JSONL log, and ping the dashboard stub.
+    Returns: { selected_agent, reason, event_id }
+    """
+    # Use your validated router
+    decision = route_agent(user_query, emotional_tone, signal_type, drift_score)
+
+    # Simple escalate rule for v1
+    try:
+        escalate_flag = 1 if float(drift_score) > 0.5 else 0
+    except Exception:
+        escalate_flag = 0
+
+    # Compose event for persistence
+    event = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "user_id": user_id,
+        "agent_id": decision["selected_agent"],
+        "signal_type": signal_type,
+        "emotional_tone": emotional_tone,
+        "drift_score": drift_score,
+        "escalate_flag": escalate_flag,
+        "payload": {"query": user_query, **(payload or {})},
+        "relationship_context": relationship_context,
+        "diagnostic_notes": diagnostic_notes,
+    }
+
+    # Save to SQLite
+    event_id = insert_event(DB_PATH, event)
+
+    # Keep the JSONL log for easy tail -n
+    log_routing_decision(
+        {**decision, "user_id": user_id, "signal_type": signal_type, "drift_score": drift_score},
+        logfile=logfile,
+    )
+
+    # Future-proof hook: console stub for dashboards
+    send_to_dashboard({**event, "id": event_id})
+
+    return {**decision, "event_id": event_id}
 
 def route_agent(user_query: str,
                 emotional_tone: Any,

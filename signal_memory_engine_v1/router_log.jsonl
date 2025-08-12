@@ -1,3 +1,6 @@
 {"timestamp": "2025-07-28T12:02:59.951644-04:00", "selected_agent": "Axis", "reason": "High emotional tone"}
 {"timestamp": "2025-07-28T12:02:59.951958-04:00", "selected_agent": "M", "reason": "Compliance signal"}
 {"timestamp": "2025-07-28T12:02:59.952018-04:00", "selected_agent": "Oria", "reason": "Default routing"}
+{"timestamp": "2025-08-10T12:31:17.708019", "selected_agent": "Axis", "reason": "High emotional tone", "user_id": "u_123", "signal_type": "relational", "drift_score": 0.1}
+{"timestamp": "2025-08-10T12:31:17.711925", "selected_agent": "M", "reason": "High drift score", "user_id": "u_123", "signal_type": "relational", "drift_score": 0.65}
+{"timestamp": "2025-08-10T12:31:17.714047", "selected_agent": "M", "reason": "Compliance signal", "user_id": "u_999", "signal_type": "compliance", "drift_score": 0.2}
