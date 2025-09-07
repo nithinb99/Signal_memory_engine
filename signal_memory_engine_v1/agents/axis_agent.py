@@ -1,6 +1,6 @@
 # agents/axis_agent.py
 import os
-from scripts.langchain_retrieval import build_qa_chain
+from signal_memory_engine_v1.scripts.langchain_retrieval import build_qa_chain
 
 # Environment-specific index name for Axis™
 INDEX_NAME = os.getenv("PINECONE_INDEX_AXIS", "axis-memory")

@@ -1,6 +1,6 @@
 # agents/oria_agent.py
 import os
-from scripts.langchain_retrieval import build_qa_chain
+from signal_memory_engine_v1.scripts.langchain_retrieval import build_qa_chain
 
 INDEX_NAME = os.getenv("PINECONE_INDEX_ORIA", "oria-memory")
 qa_oria, store_oria = build_qa_chain(

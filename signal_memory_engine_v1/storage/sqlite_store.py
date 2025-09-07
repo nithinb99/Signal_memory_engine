@@ -1,5 +1,5 @@
 import os, json, sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Iterable
 
 SCHEMA_VERSION = 1
@@ -35,7 +35,7 @@ def insert_event(db_path: str, event: dict) -> int:
                 "drift_score","escalate_flag","payload","relationship_context","diagnostic_notes")
         payload = json.dumps(event.get("payload")) if isinstance(event.get("payload"), (dict, list)) else event.get("payload")
         row = (
-            event.get("timestamp") or datetime.utcnow().isoformat(),
+            event.get("timestamp") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             event.get("user_id"),
             event.get("agent_id"),
             event.get("signal_type"),

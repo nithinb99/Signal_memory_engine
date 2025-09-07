@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/nithinbhat/Documents/Signal_engine/Signal_memory_engine/signal_memory_engine_v1/mlruns/962282893101231201/5f283e0d767a46a599b9c87ce5eeb446/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '962282893101231201'
+lifecycle_stage: active
+run_id: 5f283e0d767a46a599b9c87ce5eeb446
+run_name: grandiose-gnu-4
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1757113522935
+status: 1
+tags: []
+user_id: nate

@@ -2,7 +2,7 @@
 
 import os
 from dotenv import load_dotenv
-from vector_store import init_pinecone_index
+from signal_memory_engine_v1.vector_store import init_pinecone_index
 
 # 1) Load your Pinecone creds
 load_dotenv()

@@ -13,35 +13,62 @@ with:
   • MLflow experiment logging of params, metrics, artifacts (including prompt)
 """
 
-import os, uuid, json, time, logging, re
-from datetime import datetime
+# ── Standard library imports ───────────────────────────────
+import json
+import logging
+import os
+import re
+import time
+import uuid
 from collections import deque
-from typing import Dict, List
+from datetime import datetime
 from pathlib import Path
+from typing import Dict, List
 
+# ── Third-party imports ────────────────────────────────────
 import httpx
 import mlflow
-mlflow.autolog()
-try:
-    import mlflow.openai
-    mlflow.openai.autolog()
-except ImportError:
-    mlflow.get_logger().warning("mlflow-openai plugin not installed; skipping OpenAI autolog.")
-
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import BackgroundTasks
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import status  # (v2)
+from mlflow.tracking import MlflowClient  # (v2)
 from pydantic import BaseModel
 
-# ── Package-qualified imports ─────────────────────────────
-from signal_memory_engine_v1.api.routes import signal as signal_routes
-from signal_memory_engine_v1.scripts.langchain_retrieval import build_qa_chain
-from signal_memory_engine_v1.vector_store.pinecone_index import init_pinecone_index
-from signal_memory_engine_v1.vector_store.embeddings import get_embedder
-from signal_memory_engine_v1.sensors.biometric import sample_all_signals
-from signal_memory_engine_v1.coherence.commons import map_events_to_memory
+# ── MLflow autolog (keep order: import → autolog) ─────────
+mlflow.autolog()
+try:
+    import mlflow.openai  # noqa: F401
+    mlflow.openai.autolog()
+except ImportError:
+    mlflow.get_logger().warning(
+        "mlflow-openai plugin not installed; skipping OpenAI autolog."
+    )
 
-from signal_memory_engine_v1.agents.axis_agent import qa_axis, store_axis, ROLE_AXIS
-from signal_memory_engine_v1.agents.oria_agent import qa_oria, store_oria, ROLE_ORIA
-from signal_memory_engine_v1.agents.m_agent import qa_sentinel, store_sentinel, ROLE_SENTINEL
+# ── OpenAI rate-limit exception shim (imports) ──────────── (v2)
+try:
+    import openai  # modern openai package exceptions (v2)
+    OpenAIRateLimitError = openai.RateLimitError  # (v2)
+except Exception:  # (v2)
+    OpenAIRateLimitError = Exception  # fallback if import path differs (v2)
+
+# ── First-party (package-qualified) imports ───────────────
+from signal_memory_engine_v1.api.routes import signal as signal_routes
+from signal_memory_engine_v1.coherence.commons import map_events_to_memory
+from signal_memory_engine_v1.sensors.biometric import sample_all_signals
+from signal_memory_engine_v1.scripts.langchain_retrieval import build_qa_chain
+from signal_memory_engine_v1.vector_store.embeddings import get_embedder
+from signal_memory_engine_v1.vector_store.pinecone_index import init_pinecone_index
+
+from signal_memory_engine_v1.agents.axis_agent import ROLE_AXIS
+from signal_memory_engine_v1.agents.axis_agent import qa_axis
+from signal_memory_engine_v1.agents.axis_agent import store_axis
+from signal_memory_engine_v1.agents.m_agent import ROLE_SENTINEL
+from signal_memory_engine_v1.agents.m_agent import qa_sentinel
+from signal_memory_engine_v1.agents.m_agent import store_sentinel
+from signal_memory_engine_v1.agents.oria_agent import ROLE_ORIA
+from signal_memory_engine_v1.agents.oria_agent import qa_oria
+from signal_memory_engine_v1.agents.oria_agent import store_oria
 
 # ── FastAPI app ───────────────────────────────────────────
 app = FastAPI(title="Signal Memory RAG API")
@@ -93,17 +120,25 @@ mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
 if mlflow_uri:
     mlflow.set_tracking_uri(mlflow_uri)
 else:
-    project_root = Path(__file__).resolve().parent.parent
-    mlruns_dir   = project_root / "mlruns"
+    project_root = Path(__file__).resolve().parents[1]  # repo root
+    mlruns_dir = project_root / "mlruns"
     mlruns_dir.mkdir(parents=True, exist_ok=True)
-    uri = f"file://{mlruns_dir.resolve()}"
-    mlflow.set_tracking_uri(uri)
-    logger.debug("No MLFLOW_TRACKING_URI set, defaulting to %s", uri)
 
-try:
-    mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "SignalMemoryEngine"))
-except Exception as e:
-    logger.warning("Could not set MLflow experiment: %s", e)
+    # Use a valid file:// URI on all platforms
+    try:
+        uri = mlruns_dir.resolve().as_uri()  # e.g. file:///C:/... on Windows
+        mlflow.set_tracking_uri(uri)
+    except Exception:
+        # Fallback: plain absolute path (also works locally)
+        mlflow.set_tracking_uri(str(mlruns_dir.resolve()))
+
+# ── MLflow experiment bootstrap (avoid relying on ID=0) ─── (v2)
+EXP_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "signal-memory-engine")  # (v2)
+_client = MlflowClient()  # (v2)
+_exp = _client.get_experiment_by_name(EXP_NAME)  # (v2)
+if _exp is None:  # (v2)
+    _client.create_experiment(EXP_NAME)  # (v2)
+mlflow.set_experiment(EXP_NAME)  # (v2)
 
 # ── 1) Load & validate environment ────────────────────────
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -183,6 +218,36 @@ def notify_human_loop(query: str, agents: List[str]) -> None:
     except Exception as e:
         logger.error("Failed to notify human loop: %s", e)
 
+# ── Helper: Safe & Non-deprecated LLM invocation (.invoke + 429 handling) ── (v2)
+def _invoke_qa(chain, prompt: str) -> str:
+    """
+    Invoke a LangChain chain safely, handling OpenAI 429 / quota.
+    Uses .invoke instead of deprecated .run.
+    """
+    try:
+        # RetrievalQA chains accept {"query": "..."} when using .invoke
+        out = chain.invoke({"query": prompt})
+        # RetrievalQA returns a dict; answer is commonly under "result"
+        if isinstance(out, dict) and "result" in out:
+            return out["result"]
+        # some chains return a plain string
+        if isinstance(out, str):
+            return out
+        return str(out)
+    except OpenAIRateLimitError as e:
+        # Check for quota specifically; return a controlled 503
+        detail = (
+            "LLM quota/rate limit hit (OpenAI 429 / insufficient_quota). "
+            "Set a valid key/billing, switch model/provider, or configure a fallback."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail
+        ) from e
+    except Exception as e:
+        # Preserve original behavior for non-429 errors
+        logger.exception("LLM invoke failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 # ── 8) FastAPI endpoints ───────────────────────────────────
 class QueryRequest(BaseModel):
     query: str
@@ -222,12 +287,14 @@ def query_endpoint(req: QueryRequest):
         mlflow.log_param("prompt", full_prompt)
         mlflow.log_text(full_prompt, "prompt.txt")
 
-        # RAG
-        try:
-            answer = qa.run(full_prompt)
-        except Exception as e:
-            logger.exception("Error during RAG run [%s]", request_id)
-            raise HTTPException(status_code=500, detail=str(e))
+        # RAG (v2: allow HTTPException to pass through)
+        try:  # (v2)
+            answer = _invoke_qa(qa, full_prompt)  # (v2)
+        except HTTPException as he:  # (v2)
+            raise he  # preserve intentional statuses (e.g., 503) (v2)
+        except Exception as e:  # (v2)
+            logger.exception("Error during RAG run [%s]", request_id)  # (v2)
+            raise HTTPException(status_code=500, detail=str(e)) from e  # (v2)
 
         # retrieve & score
         raw_hits  = vectorstore.similarity_search_with_score(req.query, k=req.k)
@@ -302,6 +369,8 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
         mlflow.log_text(full_prompt, "prompt.txt")
 
         out: Dict[str, AgentResponse] = {}
+        all_events: List[dict] = []  # (v2) collect across agents
+
         for role, qa_chain, store in (
             (ROLE_AXIS,     qa_axis,     store_axis),
             (ROLE_ORIA,     qa_oria,     store_oria),
@@ -309,7 +378,19 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
         ):
             safe = sanitize_key(role)
             try:
-                ans = qa_chain.run(full_prompt)
+                ans = _invoke_qa(qa_chain, full_prompt)  # (v2)
+            except HTTPException as he:  # (v2)
+                if he.status_code == status.HTTP_503_SERVICE_UNAVAILABLE:
+                    logger.warning("Agent %s quota hit [%s]: %s", role, request_id, he.detail)  # (v2)
+                    out[role] = AgentResponse(
+                        answer="(LLM temporarily unavailable: quota/rate limit)",
+                        chunks=[], flag="stable", suggestion="No action", trust_score=0.0
+                    )
+                    trace_log(role, req.query, "stable", 0.0, request_id)  # (v2)
+                    mlflow.log_param(f"{safe}_flag", "stable")  # (v2)
+                    mlflow.log_metric(f"{safe}_top_score", 0.0)  # (v2)
+                    continue  # (v2)
+                raise he  # (v2)
             except Exception as e:
                 logger.error("Agent %s failed [%s]: %s", role, request_id, e)
                 out[role] = AgentResponse(answer="(error)", chunks=[], flag="stable",
@@ -321,6 +402,7 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
 
             raw_hits  = store.similarity_search_with_score(req.query, k=req.k)
             events    = map_events_to_memory(raw_hits)
+            all_events.extend(events)  # (v2)
             top_score = max((e["score"] for e in events), default=0.0)
             flag      = flag_from_score(top_score)
             suggestion= SUGGESTIONS[flag]
@@ -337,9 +419,9 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
             mlflow.log_metric(f"{safe}_num_chunks",  len(raw_hits))
             mlflow.log_text(ans, f"{safe}_answer.txt")
 
-        # Cross-agent derived flags
-        emo_rec_multi = int(any(e.get("emotional_recursion_present") for e in events))
-        reroute_multi = int(any(e.get("rerouting_triggered")           for e in events))
+        # Cross-agent derived flags (v2: use all_events)
+        emo_rec_multi = int(any(e.get("emotional_recursion_present") for e in all_events))  # (v2)
+        reroute_multi = int(any(e.get("rerouting_triggered")           for e in all_events))  # (v2)
         mlflow.log_param("emotional_recursion_detected", emo_rec_multi)
         mlflow.log_param("rerouting_triggered",          reroute_multi)
 

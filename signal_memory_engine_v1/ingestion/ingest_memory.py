@@ -8,8 +8,11 @@ import csv
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from vector_store.pinecone_index import init_pinecone_index, index
-from vector_store.embeddings import get_embedder
+from signal_memory_engine_v1.vector_store.pinecone_index import init_pinecone_index
+from signal_memory_engine_v1.vector_store.embeddings import get_embedder
+
+# ---- test mode guard (skip external init under tests) ---- (v2)
+TEST_MODE = os.getenv("SME_TEST_MODE") == "1"
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -26,19 +29,30 @@ DATA_FILES = [
     # "data/your_other.csv",     # if you have CSV
 ]
 
-# ── INITIALIZE ──────────────────────────────────────────────────────────────
-init_pinecone_index(
-    api_key=PINECONE_API_KEY,
-    environment=PINECONE_ENV,
-    index_name=INDEX_NAME,
-    dimension=384,
-    metric="cosine",
-)
+# ── INITIALIZE ────────────────────────────────────────────── 
+if not TEST_MODE:
+    init_pinecone_index(
+        api_key=PINECONE_API_KEY,
+        environment=PINECONE_ENV,
+        index_name=INDEX_NAME,
+        dimension=384,
+        metric="cosine",
+    )
 
-embedder = get_embedder(
-    openai_api_key=OPENAI_API_KEY,
-    model="text-embedding-ada-002",
-)
+    embedder = get_embedder(
+        openai_api_key=OPENAI_API_KEY,
+        model="text-embedding-ada-002",
+    )
+else: # (v2)
+    # harmless dummies used only in tests
+    class _DummyIndex:
+        def upsert(self, vectors):
+            pass
+    class _DummyEmbedder:
+        def embed_query(self, text):
+            return [0.0, 0.0, 0.0]
+    index = _DummyIndex()
+    embedder = _DummyEmbedder()
 
 
 def normalize_record(rec: Dict[str, Any], source: str) -> Tuple[str, str, Dict[str, Any]]:
