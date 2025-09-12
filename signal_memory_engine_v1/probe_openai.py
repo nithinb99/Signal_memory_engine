@@ -1,4 +1,9 @@
 # probe_openai.py
+
+"""
+Tests for OpenAI API connectivity.
+"""
+
 import os
 from dotenv import load_dotenv
 from openai import OpenAI

@@ -11,27 +11,36 @@ A conversational Retrieval-Augmented Generation (RAG) microservice powered by Fa
 * **Biometric Context**: Simulate HRV, temperature, and blink rate readings and inject them into queries to enrich system context.
 * **Event-to-Memory Mapping**: Normalize raw RAG hits into structured events (ID, content, score, timestamp, metadata) via Coherence Commons.
 * **Agent-to-Agent Handoff**: Automatically escalate high-severity flags by notifying a human-in-the-loop endpoint.
+* **Signal Logging**: Persist signals and drift events to SQLite with `/signal` and query user drift history with `/drift/{user_id}`.
+* **Memory Log**: Tail recent trace logs via `/memory_log`.
+* **Search API**: Query Pinecone directly with `/memory/search`.
 * **Streamlit UI**: Interactive frontend (`streamlit_app.py`) that shows answers, memory chunks, flags, suggestions, and drift visualizations per agent.
+
+---
+
+## 📘 Documentation
+
+* [App Flow Diagram (PDF)](./docs/signal_memory_engine_app_flow.pdf) — high-level overview of request flow, agents, signals, and logs.
 
 ---
 
 ## Table of Contents
 
-1. [Prerequisites](#prerequisites)
-2. [Installation](#installation)
-3. [Configuration](#configuration)
-4. [Running the API](#running-the-api)
-5. [Endpoints](#endpoints)
-6. [Streamlit UI](#streamlit-ui)
+1. [Prerequisites](#prerequisites)  
+2. [Installation](#installation)  
+3. [Configuration](#configuration)  
+4. [Running the API](#running-the-api)  
+5. [Endpoints](#endpoints)  
+6. [Streamlit UI](#streamlit-ui)  
 7. [Project Structure](#project-structure)
 
 ---
 
 ## Prerequisites
 
-* Python 3.9+
-* Pinecone account (API key & environment)
-* OpenAI account (API key)
+* Python 3.9+  
+* Pinecone account (API key & environment)  
+* OpenAI account (API key)  
 
 ---
 
@@ -44,11 +53,10 @@ cd signal_memory_engine_v1
 
 # Create & activate virtual environment
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # or .\venv\Scripts\activate on Windows
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
 ---
 
@@ -58,12 +66,15 @@ Create a `.env` file in the project root:
 
 ```ini
 PINECONE_API_KEY=<your-pinecone-api-key>
-PINECONE_ENV=<your-pinecone-environment>
+PINECONE_ENV=<your-pinecone-environment>          # e.g. us-west1-gcp
 PINECONE_INDEX=<your-pinecone-index-name>
 OPENAI_API_KEY=<your-openai-api-key>
+OPENAI_MODEL=<your-openai-model>                  # e.g. gpt-4o-mini
+MLFLOW_TRACKING_URI=                              # optional; falls back to ./mlruns
+MLFLOW_EXPERIMENT_NAME=<your-experiment-name>
+SME_DB_PATH=<your-SME_DB_PATH>
+SME_TEST_MODE=<0-or-1>                            # optional test switch; default 0 (off)
 ```
-
-* `PINECONE_INDEX` defaults to `signal-engine` if unset.
 
 ---
 
@@ -134,6 +145,120 @@ The API will run at `http://127.0.0.1:8000`.
 
 Each `AgentResponse` matches the single-agent response schema.
 
+### Memory Log
+
+**GET** `/memory_log`
+
+**Query Parameters**:
+
+* `limit` (int, default = 20) — number of recent records to return.
+
+**Response**:
+
+```json
+[
+  {
+    "timestamp": "2025-09-11T22:39:54.123Z",
+    "request_id": "abc123",
+    "agent": "single-agent",
+    "query": "What is emotional recursion?",
+    "flag": "stable",
+    "trust_score": 0.72
+  }
+]
+```
+
+### Signal Logging
+
+**POST** `/signal`
+
+**Request Body**:
+
+```json
+{
+  "user_id": "u123",
+  "user_query": "Hello world",
+  "signal_type": "relational",
+  "drift_score": 0.3,
+  "emotional_tone": 0.5,
+  "payload": {"foo": "bar"},
+  "relationship_context": "manager",
+  "diagnostic_notes": "sample note"
+}
+```
+
+**Response**:
+
+```json
+{
+  "id": 1,
+  "timestamp": "2025-09-11T22:39:54.123Z",
+  "user_id": "u123",
+  "user_query": "Hello world",
+  "signal_type": "relational",
+  "drift_score": 0.3,
+  "emotional_tone": 0.5,
+  "agent_id": "Selah",
+  "payload": {"foo": "bar"},
+  "relationship_context": "manager",
+  "diagnostic_notes": "sample note",
+  "escalate_flag": 0
+}
+```
+
+### Drift History
+
+**GET** `/drift{user_id}`
+
+**Query Parameters**:
+
+* `limit` (int, default = 10) — number of recent events.
+
+**Response**:
+
+```json
+[
+  {
+    "id": 1,
+    "timestamp": "2025-09-11T22:39:54.123Z",
+    "user_id": "u123",
+    "user_query": "Hello world",
+    "signal_type": "relational",
+    "drift_score": 0.3,
+    "emotional_tone": 0.5,
+    "agent_id": "Selah",
+    "payload": {"foo": "bar"},
+    "relationship_context": "manager",
+    "diagnostic_notes": "sample note",
+    "escalate_flag": 0
+  }
+]
+```
+
+### Memory Search
+
+**GET** `/memory/search`
+
+**Query Parameters**:
+
+* `q` (string, required) — natural language query.
+* `top_k` (int, default = 3) — number of results to return.
+
+**Response**:
+
+```json
+[
+  {
+    "id": "doc123",
+    "score": 0.82,
+    "text": "Sample content",
+    "agent": "Axis™ Relationship Architect",
+    "tags": ["tag1", "tag2"],
+    "metadata": {"source": "pinecone"}
+  }
+]
+```
+
 ---
 
 ## Streamlit UI
@@ -158,48 +283,64 @@ Submit a query to see answers, chunks, flags, suggestions, and drift visualizati
 
 ```
 	signal_memory_engine_v1/
-	├── setup.py                     # Package install script
-	├── __init__.py                  # Top-level package marker
+	├── setup.py                          # Package install script
+	├── __init__.py                       # Top-level package marker
+	├── README.md                         # Project documentation
+	├── requirements.txt                  # Python dependencies
+	├── pytest.ini                        # Pytest configuration
+	├── .env.example                      # Example environment variables (copy to .env)
+	├── starter.sh                        # Helper script to launch the service
+	├── streamlit_app.py                  # Streamlit frontend
+	├── core.py                           # Legacy RAG builder (optional)
+	├── data/                             # Local data & SQLite DBs
+	│   └── (gitignored runtime files)    # e.g., signal.db
+	├── mlruns/                           # MLflow tracking dir (created at runtime)
+	│   └── (experiment runs)
 	├── api/
-	│   ├── routes/
-	│   │   ├── memory.py            # Memory query router
-	│   │   ├── search.py            # Generic search router
-	│   │   └── __init__.py
-	│   └── main.py                  # FastAPI application
+	│   ├── main.py                       # FastAPI application (includes routers)
+	│   ├── models.py                     # Pydantic schemas
+	│   ├── deps.py                       # Shared dependencies (QA chains, vectorstore, config)
+	│   └── routes/
+	│       ├── __init__.py
+	│       ├── query.py                  # POST /query (single-agent RAG)
+	│       ├── multi.py                  # POST /multi_query (multi-agent fan-out)
+	│       ├── memory.py                 # GET /memory_log (trace JSONL tail)
+	│       ├── search.py                 # GET /memory/search (Pinecone search)
+	│       └── signal.py                 # POST /signal, GET /drift/{user_id}
 	├── agents/
-	│   ├── axis_agent.py            # Axis™ Relationship Architect chain & store
-	│   ├── oria_agent.py            # Oria™ HR Oracle chain & store
-	│   ├── m_agent.py               # M™ Shadow Sentinel chain & store
-	│   ├── router_stub.py           # Lightweight agent router prototype
-	│   └── __init__.py
+	│   ├── __init__.py
+	│   ├── axis_agent.py                 # Axis™ chain & vectorstore
+	│   ├── oria_agent.py                 # Oria™ chain & vectorstore
+	│   ├── m_agent.py                    # M™ chain & vectorstore
+	│   └── router_stub.py                # Lightweight agent router prototype
 	├── coherence/
-	│   └── commons.py               # Event-to-memory mapping utilities
+	│   └── commons.py                    # Event-to-memory mapping utilities
 	├── ingestion/
-	│   ├── batch_loader.py          # Data ingestion helpers
-	│   └── __init__.py
+	│   ├── __init__.py
+	│   └── batch_loader.py               # Data ingestion helpers
 	├── processing/
-	│   ├── normalizer.py            # Stream processing helper
-	│   ├── stream_processor.py      # Real-time event processor
-	│   └── __init__.py
+	│   ├── __init__.py
+	│   ├── normalizer.py                 # Stream processing helper
+	│   └── stream_processor.py           # Real-time event processor
 	├── sensors/
-	│   └── biometric.py             # Simulated biometric readings
+	│   └── biometric.py                  # Simulated biometric readings
 	├── scripts/
-	│   ├── langchain_retrieval.py   # build_qa_chain & vectorstore setup
-	│   ├── smoke_test.py            # Quick pipeline sanity check
-	│   ├── seed_data.py             # Sample data seeding script
-	│   └── __init__.py
-	├── vector_store/
-	│   ├── embeddings.py            # Embedding factory
-	│   ├── pinecone_index.py        # Pinecone index initialization
-	│   └── __init__.py
-	├── core.py                      # Legacy RAG builder (optional)
-	├── requirements.txt             # Python dependencies
-	├── starter.sh                   # Helper script to launch the service
-	├── streamlit_app.py             # Streamlit frontend
-	├── generate_structure.sh        # Project scaffolding script
-	├── tests/
-	│   └── test_router_stub.py      # Pytest suite for router_stub
-	└── README.md                    # Project documentation
+	│   ├── __init__.py
+	│   ├── langchain_retrieval.py        # build_qa_chain & vectorstore setup
+	│   ├── smoke_test.py                 # Quick pipeline sanity check
+	│   ├── seed_data.py                  # Sample data seeding script
+	│   ├── drift_monitor.py              # Drift monitoring job / CLI
+	│   └── ingest_memories.py            # One-off or batch memory ingestion
+	├── storage/
+	│   └── sqlite_store.py               # SQLite persistence (init_db, insert_event, list_by_user)
+	├── utils/
+	│   ├── llm.py                        # Safe LLM invocation helper (timeouts, 429→503)
+	│   ├── tracing.py                    # trace.log append + tail helpers
+	│   └── dashboard.py                  # Dashboard hook stub (send_to_dashboard)
+	└── vector_store/
+		├── __init__.py
+		├── embeddings.py                 # Embedding factory
+		└── pinecone_index.py             # Pinecone index initialization
 ```
 
 ---

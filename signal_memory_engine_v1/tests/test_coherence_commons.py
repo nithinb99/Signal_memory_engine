@@ -1,3 +1,5 @@
+# tests/test_coherence_commons.py
+
 """
 Coherence stage tests (lightweight & offline)
 

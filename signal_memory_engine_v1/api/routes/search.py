@@ -1,72 +1,56 @@
-# memory_router.py
-
-import os
-from typing import List, Dict, Any
-
+# api/routes/search.py
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 
-from vector_store.embeddings import get_embedder
-from vector_store.pinecone_index import init_pinecone_index
+from api.models import MemoryMatch
+from api import deps
 
-router = APIRouter()
+router = APIRouter(tags=["search"])
 
-# ── 0) Load & validate env ─────────────────────────────────
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENV     = os.getenv("PINECONE_ENV", "us-east-1")
-PINECONE_INDEX   = os.getenv("PINECONE_INDEX")
-OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY")
-
-if not (PINECONE_API_KEY and PINECONE_INDEX and OPENAI_API_KEY):
-    raise RuntimeError("Set PINECONE_API_KEY, PINECONE_INDEX and OPENAI_API_KEY in .env")
-
-# ── 1) Init Pinecone once ────────────────────────────────────
-pinecone_index = init_pinecone_index(
-    api_key=PINECONE_API_KEY,
-    environment=PINECONE_ENV,
-    index_name=PINECONE_INDEX,
-    dimension=384,
-    metric="cosine",
-)
-
-# ── 2) Init embedder once ────────────────────────────────────
-embedder = get_embedder(
-    openai_api_key=OPENAI_API_KEY,
-    model="text-embedding-ada-002",
-)
-
-class MemoryMatch(BaseModel):
-    id: str
-    score: float
-    metadata: Dict[str, Any]
-
-@router.post("/memory/search", response_model=List[MemoryMatch])
+@router.get("/memory/search", response_model=List[MemoryMatch])
 def search_memory(
-    q: str = Query(..., description="Your natural-language query"),
-    top_k: int = Query(3, ge=1, le=10, description="How many results to return"),
+    q: str = Query(..., description="Natural-language query"),
+    top_k: int = Query(3, ge=1, le=20),
 ):
-    # 1) Embed the query
+    # 1) Embed with shared embedder
     try:
-        q_vec = embedder.embed_query(q)
+        q_vec = deps.plain_embedder.embed_query(q)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Embedding error: {e}")
 
-    # 2) Query Pinecone
+    # 2) Query raw Pinecone index
     try:
-        resp = pinecone_index.query(
+        resp = deps.pinecone_index.query(
             vector=q_vec,
             top_k=top_k,
-            include_metadata=True
+            include_metadata=True,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pinecone query error: {e}")
 
-    # 3) Normalize and return
-    matches = []
-    for m in getattr(resp, "matches", resp.get("matches", [])):
-        matches.append(MemoryMatch(
-            id=m.id if hasattr(m, "id") else m["id"],
-            score=m.score if hasattr(m, "score") else m["score"],
-            metadata=(m.metadata if hasattr(m, "metadata") else m["metadata"])
+    # 3) Normalize response
+    out: List[MemoryMatch] = []
+    matches = getattr(resp, "matches", resp.get("matches", []))
+    for m in matches:
+        # support SDK object or dict
+        mid     = m.id     if hasattr(m, "id")     else m["id"]
+        mscore  = m.score  if hasattr(m, "score")  else m["score"]
+        meta    = m.metadata if hasattr(m, "metadata") else m.get("metadata", {}) or {}
+        out.append(MemoryMatch(
+            id=mid,
+            score=float(mscore),
+            text=meta.get("content") or meta.get("text"),
+            agent=meta.get("agent"),
+            tags=meta.get("tags"),
+            metadata=meta,
         ))
-    return matches
+    return out
+
+
+@router.get("/memory/vector_query", response_model=List[MemoryMatch])
+def vector_query(
+    q: str = Query(..., description="Natural-language query (low-level vector path)"),
+    top_k: int = Query(3, ge=1, le=20),
+):
+    # identical to search_memory; kept as a separate path if different behaviors are desired later
+    return search_memory(q=q, top_k=top_k)
