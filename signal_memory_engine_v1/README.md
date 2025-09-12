@@ -20,7 +20,8 @@ A conversational Retrieval-Augmented Generation (RAG) microservice powered by Fa
 
 ## 📘 Documentation
 
-* [App Flow Diagram (PDF)](./docs/signal_memory_engine_app_flow.pdf) — high-level overview of request flow, agents, signals, and logs.
+* [Query Endpoint Flow (PDF)](./docs/query_endpoint_flow.pdf) — step-by-step walkthrough of how a request to `/query` is processed, including biometrics, retrieval, LLM, logging, and response.
+* [Ingestion, Coherence, and Storage Flow (PDF)](./docs/ingestion_coherence_storage_flow.pdf) — overview of how raw inputs are ingested, normalized into coherent events, and persisted in storage.
 
 ---
 
