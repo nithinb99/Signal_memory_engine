@@ -35,6 +35,13 @@ from fastapi import status  # (v2)
 from mlflow.tracking import MlflowClient  # (v2)
 from pydantic import BaseModel
 
+# ── Logging setup ─────────────────────────────────────────
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 # ── MLflow autolog (keep order: import → autolog) ─────────
 mlflow.autolog()
 try:
@@ -45,30 +52,36 @@ except ImportError:
         "mlflow-openai plugin not installed; skipping OpenAI autolog."
     )
 
-# ── OpenAI rate-limit exception shim (imports) ──────────── (v2)
-try:
-    import openai  # modern openai package exceptions (v2)
-    OpenAIRateLimitError = openai.RateLimitError  # (v2)
-except Exception:  # (v2)
-    OpenAIRateLimitError = Exception  # fallback if import path differs (v2)
+from dotenv import load_dotenv
+load_dotenv()  # loads .env into os.environ (OPENAI_API_KEY, etc.)
+
+# ── 1) Load & validate environment ────────────────────────
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+# accept either PINECONE_ENVIRONMENT (your .env) or PINECONE_ENV (existing code)
+PINECONE_ENV     = os.getenv("PINECONE_ENVIRONMENT") or os.getenv("PINECONE_ENV", "us-east-1")
+INDEX_NAME       = os.getenv("PINECONE_INDEX",   "signal-engine")
+OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY")
+if not (PINECONE_API_KEY and OPENAI_API_KEY):
+    logging.error("Missing Pinecone or OpenAI API key")
+    raise RuntimeError("Set PINECONE_API_KEY and OPENAI_API_KEY in .env")
 
 # ── First-party (package-qualified) imports ───────────────
-from signal_memory_engine_v1.api.routes import signal as signal_routes
-from signal_memory_engine_v1.coherence.commons import map_events_to_memory
-from signal_memory_engine_v1.sensors.biometric import sample_all_signals
-from signal_memory_engine_v1.scripts.langchain_retrieval import build_qa_chain
-from signal_memory_engine_v1.vector_store.embeddings import get_embedder
-from signal_memory_engine_v1.vector_store.pinecone_index import init_pinecone_index
+from api.routes import signal as signal_routes
+from coherence.commons import map_events_to_memory
+from sensors.biometric import sample_all_signals
+from scripts.langchain_retrieval import build_qa_chain
+from vector_store.embeddings import get_embedder
+from vector_store.pinecone_index import init_pinecone_index
 
-from signal_memory_engine_v1.agents.axis_agent import ROLE_AXIS
-from signal_memory_engine_v1.agents.axis_agent import qa_axis
-from signal_memory_engine_v1.agents.axis_agent import store_axis
-from signal_memory_engine_v1.agents.m_agent import ROLE_SENTINEL
-from signal_memory_engine_v1.agents.m_agent import qa_sentinel
-from signal_memory_engine_v1.agents.m_agent import store_sentinel
-from signal_memory_engine_v1.agents.oria_agent import ROLE_ORIA
-from signal_memory_engine_v1.agents.oria_agent import qa_oria
-from signal_memory_engine_v1.agents.oria_agent import store_oria
+from agents.axis_agent import ROLE_AXIS
+from agents.axis_agent import qa_axis
+from agents.axis_agent import store_axis
+from agents.m_agent import ROLE_SENTINEL
+from agents.m_agent import qa_sentinel
+from agents.m_agent import store_sentinel
+from agents.oria_agent import ROLE_ORIA
+from agents.oria_agent import qa_oria
+from agents.oria_agent import store_oria
 
 # ── FastAPI app ───────────────────────────────────────────
 app = FastAPI(title="Signal Memory RAG API")
@@ -107,13 +120,6 @@ class TraceRecord(BaseModel):
 # ── Helper to sanitize MLflow keys ────────────────────────
 def sanitize_key(key: str) -> str:
     return re.sub(r"[^\w\-\.:/ ]", "", key)
-
-# ── Logging setup ─────────────────────────────────────────
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 # ── MLflow tracking setup ─────────────────────────────────
 mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
@@ -162,12 +168,12 @@ logger.debug("Pinecone index '%s' ready", INDEX_NAME)
 # ── 3) Prepare embedder ────────────────────────────────────
 embeddings = get_embedder(
     openai_api_key=OPENAI_API_KEY,
-    model="text-embedding-ada-002",
+    model="text-embedding-3-small",
 )
 
 # ── 4) Build default QA chain + vectorstore ───────────────
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-LLM_MODEL   = "gpt-3.5-turbo"
+LLM_MODEL   = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # was gpt-3.5-turbo
 qa, vectorstore = build_qa_chain(
     pinecone_api_key=PINECONE_API_KEY,
     pinecone_env=PINECONE_ENV,
@@ -227,15 +233,15 @@ def _invoke_qa(chain, prompt: str) -> str:
     try:
         # RetrievalQA chains accept {"query": "..."} when using .invoke
         out = chain.invoke({"query": prompt})
-        # RetrievalQA returns a dict; answer is commonly under "result"
+        # RetrievalQA returns a dict; answer under "result"
         if isinstance(out, dict) and "result" in out:
             return out["result"]
         # some chains return a plain string
         if isinstance(out, str):
             return out
         return str(out)
-    except OpenAIRateLimitError as e:
-        # Check for quota specifically; return a controlled 503
+    except Exception as e:
+        # check for quota specifically; return a controlled 503
         detail = (
             "LLM quota/rate limit hit (OpenAI 429 / insufficient_quota). "
             "Set a valid key/billing, switch model/provider, or configure a fallback."
@@ -389,7 +395,7 @@ def multi_query(req: QueryRequest, bg: BackgroundTasks):
                     trace_log(role, req.query, "stable", 0.0, request_id)  # (v2)
                     mlflow.log_param(f"{safe}_flag", "stable")  # (v2)
                     mlflow.log_metric(f"{safe}_top_score", 0.0)  # (v2)
-                    continue  # (v2)
+                    continue  # skips current agent but continues for the others (v2)
                 raise he  # (v2)
             except Exception as e:
                 logger.error("Agent %s failed [%s]: %s", role, request_id, e)

@@ -9,7 +9,7 @@ with helper functions for signal-flag scoring and suggestions.
 import pinecone
 import logging
 from langchain.chains import RetrievalQA
-from langchain_community.vectorstores import Pinecone as LC_Pinecone
+from langchain_pinecone import Pinecone as LC_Pinecone
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
@@ -40,14 +40,13 @@ SUGGESTIONS = {
     "concern":  "Recommend escalation or a one-on-one conversation."
 }
 
-
 def build_qa_chain(
     pinecone_api_key: str,
     pinecone_env: str,
     index_name: str,
     openai_api_key: str,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    llm_model: str = "gpt-3.5-turbo",
+    llm_model: str = "gpt-4o-mini",  # ← was gpt-3.5-turbo
     k: int = 3,
 ) -> tuple[RetrievalQA, LC_Pinecone]:
     """
@@ -57,7 +56,7 @@ def build_qa_chain(
         qa_chain: LangChain RetrievalQA
         vectorstore: Pinecone vector store client
     """
-    # 1) Monkey-patch Pinecone
+    # 1) Monkey-patch Pinecone 
     if not hasattr(pinecone, "__version__"):
         pinecone.__version__ = "3.0.0"
     pc = pinecone.Pinecone(api_key=pinecone_api_key, environment=pinecone_env)

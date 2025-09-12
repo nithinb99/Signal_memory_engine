@@ -1,14 +1,22 @@
 # agents/sentinel.py
 import os
-from signal_memory_engine_v1.scripts.langchain_retrieval import build_qa_chain
+from dotenv import load_dotenv
+from scripts.langchain_retrieval import build_qa_chain
+
+load_dotenv()
+
+PINECONE_ENV = os.getenv("PINECONE_ENVIRONMENT", "us-west1-gcp")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 INDEX_NAME = os.getenv("PINECONE_INDEX_SENTINEL", "sentinel-memory")
 qa_sentinel, store_sentinel = build_qa_chain(
     pinecone_api_key=os.getenv("PINECONE_API_KEY"),
-    pinecone_env=os.getenv("PINECONE_ENV", "us-east-1"),
+    pinecone_env=PINECONE_ENV,
     index_name=INDEX_NAME,
     openai_api_key=os.getenv("OPENAI_API_KEY"),
     embed_model="sentence-transformers/all-MiniLM-L6-v2",
-    llm_model="gpt-3.5-turbo",
+    llm_model=OPENAI_MODEL,
+    k=3,
 )
+
 ROLE_SENTINEL = "M™ Shadow Sentinel"

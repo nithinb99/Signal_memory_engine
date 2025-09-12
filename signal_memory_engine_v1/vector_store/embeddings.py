@@ -10,6 +10,9 @@ from langchain.embeddings.base import Embeddings
 # Sentence-Transformers for local embedding
 from sentence_transformers import SentenceTransformer
 
+from dotenv import load_dotenv
+load_dotenv()  # loads .env into os.environ (OPENAI_API_KEY, etc.)
+
 # ── Configuration ─────────────────────────────────────────
 # Default models and keys
 DEFAULT_EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-ada-002")

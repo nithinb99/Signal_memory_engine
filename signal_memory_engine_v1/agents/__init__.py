@@ -2,12 +2,12 @@
 
 import os
 from dotenv import load_dotenv
-from signal_memory_engine_v1.vector_store import init_pinecone_index
+from vector_store import init_pinecone_index
 
 # 1) Load your Pinecone creds
 load_dotenv()
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENV     = os.getenv("PINECONE_ENV", "us-east-1")
+PINECONE_ENV     = os.getenv("PINECONE_ENV", "us-west1-gcp")
 
 if not PINECONE_API_KEY:
     raise RuntimeError("Missing PINECONE_API_KEY in .env")

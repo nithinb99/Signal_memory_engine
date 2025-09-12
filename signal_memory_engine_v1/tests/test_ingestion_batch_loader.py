@@ -10,7 +10,7 @@ Covers BatchLoader.load():
 
 import json
 from pathlib import Path
-from signal_memory_engine_v1.ingestion.batch_loader import BatchLoader
+from ingestion.batch_loader import BatchLoader
 
 def test_batch_loader_normalizes_entries(tmp_path: Path):
     raw = [

@@ -9,15 +9,14 @@ from pydantic import BaseModel, Field
 # from storage.sqlite_store import init_db, insert_event, list_by_user
 # from agents.router_stub import route_agent, log_routing_decision
 # from utils.dashboard import send_to_dashboard
-from signal_memory_engine_v1.storage.sqlite_store import init_db, insert_event, list_by_user
-from signal_memory_engine_v1.agents.router_stub import route_agent, log_routing_decision
-from signal_memory_engine_v1.utils.dashboard import send_to_dashboard
+from storage.sqlite_store import init_db, insert_event, list_by_user
+from agents.router_stub import route_agent, log_routing_decision
+from utils.dashboard import send_to_dashboard
 
 DB_PATH = os.getenv("SME_DB_PATH", "./data/signal.db")
 init_db(DB_PATH)
 
 router = APIRouter()
-
 
 # ---------- Models (Pydantic v2) ----------
 class SignalEventIn(BaseModel):

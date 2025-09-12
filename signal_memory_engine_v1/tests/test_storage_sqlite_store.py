@@ -17,7 +17,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from signal_memory_engine_v1.storage.sqlite_store import (
+from storage.sqlite_store import (
     init_db,
     insert_event,
     list_recent,
@@ -103,7 +103,7 @@ def test_insert_and_list_recent_ordering_and_payload_json(tmp_path: Path):
     id1 = insert_event(db_path, e1)
     assert isinstance(id1, int) and id1 >= 1
 
-    # Insert second event (string payload passes through)
+    # Insert second event
     e2 = {
         "user_id": "u2",
         "agent_id": "M",
@@ -133,7 +133,6 @@ def test_insert_and_list_recent_ordering_and_payload_json(tmp_path: Path):
     assert r2["escalate_flag"] == 1
     assert r1["escalate_flag"] == 0
 
-    # Payload surfaced as TEXT:
     # - e2 was a string → same string
     assert r2["payload"] == "raw-payload"
 
@@ -233,5 +232,4 @@ def test_insert_event_infers_timestamp_when_missing(tmp_path: Path):
     rows = list_recent(db_path, limit=1)
     assert rows and rows[0]["id"] == eid
     ts = rows[0]["timestamp"]
-    # ISO-like sanity check: "YYYY-MM-DDTHH:MM:SS"
     assert isinstance(ts, str) and "T" in ts

@@ -23,7 +23,7 @@ import re
 import pytest
 
 # Import the module under test
-from signal_memory_engine_v1.coherence.commons import (
+from coherence.commons import (
     flag_from_score,
     normalize_timestamp,
     generate_event_id,
@@ -103,7 +103,6 @@ def test_generate_event_id_deterministic_and_sensitive_to_inputs():
     assert a != c, "Different timestamp should change the ID"
     assert a != d, "Different content should change the ID"
 
-    # Sanity: looks like hex md5 (32 hex chars)
     assert re.fullmatch(r"[a-f0-9]{32}", a)
 
 
@@ -171,7 +170,6 @@ def test_map_events_to_memory_core_fields_and_flags():
     assert e1["suggestion"] == SUGGESTIONS["drifting"]
     # Non-ISO timestamp should round trip as-is (commons keeps string)
     assert e1["timestamp"] == "2024/01/02 12:00:00"
-    # Should still preserve extra metadata (and not duplicate 'timestamp')
     assert "metadata" in e1
     assert "source" in e1["metadata"]
     assert "timestamp" not in e1["metadata"]
