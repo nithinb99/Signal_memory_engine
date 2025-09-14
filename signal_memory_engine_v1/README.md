@@ -331,54 +331,34 @@ Accepts the same body as `/query` but returns only the derived trust score and f
 
 ```mermaid
 flowchart LR
-    subgraph Client
-      U[User / UI / cURL]
-    end
+  subgraph Client
+    U[Caller]
+  end
 
-    subgraph API[FastAPI]
-      A[Collect biometrics] --> B[Build prompt]
-      B --> C[LLM (invoke)]
-      B --> D[Vector search (Pinecone)]
-      D --> E[map_events_to_memory (Coherence Commons)]
-      C --> F[Compose response]
-      E --> F
-      F --> G[Trace log + MLflow]
-    end
+  subgraph API[FastAPI]
+    A[Collect biometrics] --> B[Build prompt]
+    B --> C[LLM invoke]
+    B --> D[Vector search Pinecone]
+    D --> E[Map events to memory]
+    C --> F[Compose response]
+    E --> F
+    F --> G[Trace log and MLflow]
+  end
 
-    U -->|/query or /multi_query| A
-```
-
-### Multi-agent fan-out + router
-
-```mermaid
-flowchart TB
-    Q[Request] --> R[router_stub.route_agent]
-    R -->|advisory| AX[Axis QA] & OR[Oria QA] & MS[M Sentinel QA]
-    R -->|enforced (ROUTER_ENFORCE=1)| CH[Chosen agent only]
-
-    AX --> VS1[(Axis store)] --> M1[map_events_to_memory]
-    OR --> VS2[(Oria store)] --> M2[map_events_to_memory]
-    MS --> VS3[(Sentinel store)] --> M3[map_events_to_memory]
-
-    M1 --> AGG[Aggregate events/scores]
-    M2 --> AGG
-    M3 --> AGG
-
-    AGG --> FLAGS{flag_from_score / suggestions}
-    FLAGS --> RESP[Response + escalation if concern]
+  U -->|query or multi_query| A
 ```
 
 ### Ingestion → Coherence → Storage
 
 ```mermaid
 flowchart LR
-    IN[Raw inputs (docs/json)] --> SPLIT[Chunking / normalizer]
-    SPLIT --> EMB[Embeddings]
-    EMB --> PIN[(Pinecone Index)]
-    PIN -.-> RET[Retriever]
-    RET -.-> API[/query, /multi_query/]
-    IN --> COH[Coherence Commons (map, tag, suggest)]
-    COH --> DB[(SQLite)]
+  IN[Raw inputs] --> SPLIT[Chunking and normalize]
+  SPLIT --> EMB[Embeddings]
+  EMB --> PIN[(Pinecone index)]
+  PIN -.-> RET[Retriever]
+  RET -.-> API[API endpoints]
+  IN --> COH[Coherence mapping]
+  COH --> DB[(SQLite)]
 ```
 
 ---
