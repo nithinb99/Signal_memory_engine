@@ -4,13 +4,16 @@
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
+
 class Chunk(BaseModel):
     content: str
     score: float
 
+
 class QueryRequest(BaseModel):
     query: str
     k: int = 3
+
 
 class QueryResponse(BaseModel):
     answer: str
@@ -19,6 +22,7 @@ class QueryResponse(BaseModel):
     suggestion: str
     trust_score: float
 
+
 class AgentResponse(BaseModel):
     answer: str
     chunks: List[Chunk]
@@ -26,8 +30,10 @@ class AgentResponse(BaseModel):
     suggestion: str
     trust_score: float
 
+
 class MultiQueryResponse(BaseModel):
     agents: Dict[str, AgentResponse]
+
 
 class TraceRecord(BaseModel):
     timestamp: str
@@ -37,6 +43,7 @@ class TraceRecord(BaseModel):
     flag: str
     trust_score: float
 
+
 class MemoryMatch(BaseModel):
     id: str
     score: float
@@ -44,6 +51,7 @@ class MemoryMatch(BaseModel):
     agent: Optional[str] = None
     tags: Optional[List[str]] = None
     metadata: Optional[Dict[str, Any]] = None
+
 
 class SignalEventIn(BaseModel):
     user_id: str
@@ -55,6 +63,7 @@ class SignalEventIn(BaseModel):
     payload: Optional[dict] = None
     relationship_context: Optional[str] = None
     diagnostic_notes: Optional[str] = None
+
 
 class SignalEventOut(SignalEventIn):
     id: int

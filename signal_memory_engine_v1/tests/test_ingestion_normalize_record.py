@@ -4,19 +4,24 @@
 Covers normalize_record() only (no external services).
 We toggle SME_TEST_MODE so the module imports without side effects.
 """
+
 import importlib
 import pytest
 import os
+
 
 def _import_module_in_test_mode():
     os.environ["SME_TEST_MODE"] = "1"
     return importlib.import_module("signal_memory_engine_v1.ingestion.ingest_memory")
 
+
 def test_normalize_record_variants():
     mod = _import_module_in_test_mode()
 
     # content under "content"
-    rid, content, meta = mod.normalize_record({"id": "abc", "content": "Hello", "x": 1}, "seed")
+    rid, content, meta = mod.normalize_record(
+        {"id": "abc", "content": "Hello", "x": 1}, "seed"
+    )
     assert rid == "abc"
     assert content == "Hello"
     assert meta["source"] == "seed" and meta["x"] == 1

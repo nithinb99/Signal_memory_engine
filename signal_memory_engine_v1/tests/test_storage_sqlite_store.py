@@ -28,12 +28,14 @@ from storage.sqlite_store import (
 
 # ---------- helpers -----------------------------------------------------------
 
+
 def _open_sqlite(db_path: str) -> sqlite3.Connection:
     """Open a sqlite connection to assert on internal schema/rows."""
     return sqlite3.connect(db_path, check_same_thread=False)
 
 
 # ---------- tests -------------------------------------------------------------
+
 
 def test_init_db_idempotent_and_schema(tmp_path: Path):
     """

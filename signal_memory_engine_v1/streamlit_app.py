@@ -5,6 +5,7 @@ from dashboard import show_dashboard
 
 # Basic Streamlit UI for Signal Memory RAG backend with drift visualization
 
+
 def plot_drift(scores: dict):
     """
     Create a radial bar chart showing each agent's top similarity score using matplotlib.
@@ -85,7 +86,7 @@ def main():
             display_flag(data.get("flag", ""), data.get("suggestion", ""))
 
             # Drift Gauge
-            top_score = max((c['score'] for c in data.get('chunks', [])), default=0.0)
+            top_score = max((c["score"] for c in data.get("chunks", [])), default=0.0)
             st.subheader("Drift Gauge")
             fig = plot_drift({mode: top_score})
             st.pyplot(fig)
@@ -110,7 +111,7 @@ def main():
                 display_flag(result.get("flag", ""), result.get("suggestion", ""))
 
                 # collect for drift chart
-                top = max((c['score'] for c in result.get('chunks', [])), default=0.0)
+                top = max((c["score"] for c in result.get("chunks", [])), default=0.0)
                 drift_scores[role] = top
 
             st.subheader("Drift Visualization")

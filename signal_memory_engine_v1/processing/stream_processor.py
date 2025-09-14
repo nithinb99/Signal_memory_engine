@@ -4,11 +4,16 @@ import time
 import logging
 from typing import Iterator, Dict, Any
 from normalizer import normalize_event
-from vector_store.pinecone_index import upsert_batch  # your helper to upsert into Pinecone
+from vector_store.pinecone_index import (
+    upsert_batch,
+)  # your helper to upsert into Pinecone
 
 logger = logging.getLogger(__name__)
 
-def ingest_event_stream(source: Iterator[Dict[str, Any]], batch_size: int = 50, interval: float = 1.0):
+
+def ingest_event_stream(
+    source: Iterator[Dict[str, Any]], batch_size: int = 50, interval: float = 1.0
+):
     """
     Continuously read raw events from `source` (could be Kafka consumer, webhook queue, etc.),
     normalize them, and batch‐upsert into Pinecone.
@@ -31,6 +36,7 @@ def ingest_event_stream(source: Iterator[Dict[str, Any]], batch_size: int = 50, 
     # final flush
     if batch:
         _flush_batch(batch)
+
 
 def _flush_batch(batch: list[Dict[str, Any]]):
     """

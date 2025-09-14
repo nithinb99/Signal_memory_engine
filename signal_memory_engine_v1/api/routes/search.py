@@ -1,11 +1,12 @@
 # api/routes/search.py
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, HTTPException, Query
 
 from api.models import MemoryMatch
 from api import deps
 
 router = APIRouter(tags=["search"])
+
 
 @router.get("/memory/search", response_model=List[MemoryMatch])
 def search_memory(
@@ -33,17 +34,19 @@ def search_memory(
     matches = getattr(resp, "matches", resp.get("matches", []))
     for m in matches:
         # support SDK object or dict
-        mid     = m.id     if hasattr(m, "id")     else m["id"]
-        mscore  = m.score  if hasattr(m, "score")  else m["score"]
-        meta    = m.metadata if hasattr(m, "metadata") else m.get("metadata", {}) or {}
-        out.append(MemoryMatch(
-            id=mid,
-            score=float(mscore),
-            text=meta.get("content") or meta.get("text"),
-            agent=meta.get("agent"),
-            tags=meta.get("tags"),
-            metadata=meta,
-        ))
+        mid = m.id if hasattr(m, "id") else m["id"]
+        mscore = m.score if hasattr(m, "score") else m["score"]
+        meta = m.metadata if hasattr(m, "metadata") else m.get("metadata", {}) or {}
+        out.append(
+            MemoryMatch(
+                id=mid,
+                score=float(mscore),
+                text=meta.get("content") or meta.get("text"),
+                agent=meta.get("agent"),
+                tags=meta.get("tags"),
+                metadata=meta,
+            )
+        )
     return out
 
 

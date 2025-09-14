@@ -2,6 +2,7 @@
 """
 Simulated biometric sampling, including future metrics (GSR) and auto-tagged emotional state.
 """
+
 import os
 import random
 from typing import Dict
@@ -39,7 +40,9 @@ def sample_all_signals() -> Dict[str, any]:
     }
 
 
-def _detect_emotion_label(hrv: float, temperature: float, blink_rate: float, gsr: float) -> str:
+def _detect_emotion_label(
+    hrv: float, temperature: float, blink_rate: float, gsr: float
+) -> str:
     """
     Use a lightweight OpenAI prompt to classify the user's emotional state given biometric signals.
     Returns a single-label string (e.g., 'calm', 'anxious', 'stressed', 'happy').

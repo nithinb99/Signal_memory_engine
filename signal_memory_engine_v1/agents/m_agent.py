@@ -8,6 +8,7 @@ load_dotenv()
 
 ROLE_SENTINEL = "M™ Shadow Sentinel"
 
+
 @lru_cache(maxsize=1)
 def get_sentinel_chain():
     return build_qa_chain(

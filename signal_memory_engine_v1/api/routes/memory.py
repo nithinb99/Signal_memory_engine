@@ -7,6 +7,7 @@ from utils.tracing import read_trace_tail
 
 router = APIRouter()
 
+
 @router.get("/memory_log", response_model=list[TraceRecord])
 def memory_log(limit: int = 20):
     try:

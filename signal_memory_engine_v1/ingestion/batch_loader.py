@@ -4,6 +4,7 @@ import json
 import uuid
 from typing import List, Dict
 
+
 class BatchLoader:
     def __init__(self, path: str):
         self.path = path
@@ -21,11 +22,13 @@ class BatchLoader:
             # Generate a unique ID if missing
             entry_id = entry.get("id") or str(uuid.uuid4())
 
-            normalized.append({
-                "id":      entry_id,
-                "content": content,
-                "tags":    entry.get("tags", []),
-                "agent":   entry.get("agent"),
-            })
+            normalized.append(
+                {
+                    "id": entry_id,
+                    "content": content,
+                    "tags": entry.get("tags", []),
+                    "agent": entry.get("agent"),
+                }
+            )
 
         return normalized

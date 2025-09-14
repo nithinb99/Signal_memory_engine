@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# VCS
+.git/
+.gitignore
+
+# Data / artifacts
+mlruns/
+data/
+*.db
+*.sqlite
+*.log
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Node / front-end (if present)
+node_modules/
+dist/
+.out/
+.next/

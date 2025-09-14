@@ -12,9 +12,14 @@ import json
 from pathlib import Path
 from ingestion.batch_loader import BatchLoader
 
+
 def test_batch_loader_normalizes_entries(tmp_path: Path):
     raw = [
-        {"content": " First, hydrate the vector store.  ", "tags": ["setup"], "agent": "Axis"},
+        {
+            "content": " First, hydrate the vector store.  ",
+            "tags": ["setup"],
+            "agent": "Axis",
+        },
         {"content": "  "},  # skipped (empty after strip)
         {"id": "custom-123", "content": "Keep an eye on drift.", "tags": []},
     ]

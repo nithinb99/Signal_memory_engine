@@ -1,7 +1,8 @@
 # ============================================================================
 # api/routes/signal.py  →  /signal + /drift endpoints
 # ============================================================================
-import os, json as _json
+import os
+import json as _json
 from datetime import datetime
 from fastapi import APIRouter, Query
 from api.models import SignalEventIn, SignalEventOut
@@ -12,6 +13,7 @@ from utils.dashboard import send_to_dashboard
 router = APIRouter()
 DB_PATH = os.getenv("SME_DB_PATH", "./data/signal.db")
 init_db(DB_PATH)
+
 
 @router.post("/signal", response_model=SignalEventOut)
 def log_signal(event: SignalEventIn):
@@ -51,6 +53,7 @@ def log_signal(event: SignalEventIn):
 
     send_to_dashboard({**stored})
     return stored
+
 
 @router.get("/drift/{user_id}", response_model=list[SignalEventOut])
 def get_drift(user_id: str, limit: int = Query(10, ge=1, le=100)):

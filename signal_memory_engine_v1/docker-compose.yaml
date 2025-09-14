@@ -1,7 +1,6 @@
-version: '3.8'
 services:
   mlflow:
-    image: python:3.10-slim
+    image: python:3.11-slim
     container_name: mlflow
     command: >
       sh -c "pip install mlflow &&
@@ -19,28 +18,33 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: dockerfile.backend
     container_name: backend
     environment:
+      # required
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX=${PINECONE_INDEX}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-us-east-1}
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - MLFLOW_EXPERIMENT=SignalMemoryEngine
+      - MLFLOW_EXPERIMENT_NAME=SignalMemoryEngine
+      # optional but useful
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
     depends_on:
       - mlflow
     ports:
       - "8000:8000"
 
-  ui:
-    build:
-      context: .
-      dockerfile: Dockerfile.ui
-    container_name: ui
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-    depends_on:
-      - backend
-      - mlflow
-    ports:
-      - "8501:8501"
+  # ui:
+  #   build:
+  #     context: .
+  #     dockerfile: dockerfile.ui
+  #   container_name: ui
+  #   environment:
+  #     - BACKEND_URL=http://backend:8000
+  #     - MLFLOW_TRACKING_URI=http://mlflow:5000
+  #   depends_on:
+  #     - backend
+  #     - mlflow
+  #   ports:
+  #     - "8501:8501"

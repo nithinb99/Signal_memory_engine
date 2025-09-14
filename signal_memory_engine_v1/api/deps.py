@@ -2,16 +2,12 @@
 # api/deps.py (shared singletons & config init)
 # ============================================================================
 import os
-import re
-import time
-import json
-import httpx
-import mlflow
 import logging
-from pathlib import Path
-from datetime import datetime
-from mlflow.tracking import MlflowClient
 from dotenv import load_dotenv
+from pathlib import Path
+
+import mlflow
+from mlflow.tracking import MlflowClient
 
 from vector_store.pinecone_index import init_pinecone_index
 from vector_store.embeddings import get_embedder
@@ -21,6 +17,7 @@ from scripts.langchain_retrieval import build_qa_chain
 from agents.axis_agent import ROLE_AXIS, get_axis_chain
 from agents.oria_agent import ROLE_ORIA, get_oria_chain
 from agents.m_agent import ROLE_SENTINEL, get_sentinel_chain
+from coherence.commons import flag_from_score as _flag_from_score, SUGGESTIONS as _SUGGESTIONS
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -40,7 +37,7 @@ try:
     import mlflow.openai
     mlflow.openai.autolog()
 except Exception:
-    mlflow.get_logger().warning("mlflow-openai plugin no installed; skipping OpenAI autolog.")
+    mlflow.get_logger().warning("mlflow-openai plugin not installed; skipping OpenAI autolog.")
 
 mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
 if mlflow_uri:
@@ -84,11 +81,7 @@ qa, vectorstore = build_qa_chain(
 )
 
 # shared helpers/consts used by routes
-SUGGESTIONS = {
-"stable": "No action needed.",
-"drifting": "Consider sending a check-in message.",
-"concern": "Recommend escalation or a one-on-one conversation.",
-}
+SUGGESTIONS = _SUGGESTIONS
 
 qa_axis, store_axis = get_axis_chain()
 qa_oria, store_oria = get_oria_chain()
@@ -100,13 +93,6 @@ ROLE_CHAINS = (
     (ROLE_SENTINEL, qa_sentinel, store_sentinel),
 )
 
-def flag_from_score(score: float) -> str:
-    if score > 0.8:
-        return "concern"
-    if score > 0.5:
-        return "drifting"
-    return "stable"
+AGENTS = ROLE_CHAINS
 
-def sanitize_key(key: str) -> str:
-    import re
-    return re.sub(r"[^\w\-\.:/ ]", "", key)
+flag_from_score = _flag_from_score

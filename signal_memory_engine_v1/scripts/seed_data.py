@@ -9,25 +9,28 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from vector_store.pinecone_index import init_pinecone_index, index
-from vector_store.embeddings     import get_embedder
+from vector_store.embeddings import get_embedder
 
 # ── CONFIG ───────────────────────────────────────────────────
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENV     = os.getenv("PINECONE_ENV",     "us-east-1")
-INDEX_NAME       = os.getenv("PINECONE_INDEX",   "signal-engine")
-OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY")
+PINECONE_ENV = os.getenv("PINECONE_ENV", "us-east-1")
+INDEX_NAME = os.getenv("PINECONE_INDEX", "signal-engine")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-DATA_DIR   = "data/seed"
+DATA_DIR = "data/seed"
 BATCH_SIZE = 100
+
 
 # ── UTILITIES ────────────────────────────────────────────────
 def load_jsonl(path):
     with open(path, "r") as f:
         return [json.loads(line) for line in f if line.strip()]
 
+
 def load_json(path):
     with open(path, "r") as f:
         return json.load(f)
+
 
 def normalize_record(rec):
     """
@@ -37,6 +40,7 @@ def normalize_record(rec):
     metadata = {k: v for k, v in rec.items() if k not in ("content", "text", "excerpt")}
     rid = rec.get("id") or rec.get("thread_id") or os.urandom(8).hex()
     return text, metadata, rid
+
 
 # ── INGESTION FUNCTION ──────────────────────────────────────
 def upsert_seed_memories(data_dir: str = DATA_DIR):
@@ -52,7 +56,9 @@ def upsert_seed_memories(data_dir: str = DATA_DIR):
         metric="cosine",
     )
     # 2) embedder
-    embedder = get_embedder(openai_api_key=OPENAI_API_KEY, model="text-embedding-ada-002")
+    embedder = get_embedder(
+        openai_api_key=OPENAI_API_KEY, model="text-embedding-ada-002"
+    )
 
     # 3) discover files
     patterns = [
@@ -82,6 +88,7 @@ def upsert_seed_memories(data_dir: str = DATA_DIR):
         index.upsert(vectors=to_upsert)
 
     print("✅ All seed data upserted to Pinecone.")
+
 
 # ── ENTRYPOINT ──────────────────────────────────────────────
 if __name__ == "__main__":

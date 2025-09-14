@@ -16,8 +16,7 @@ from langchain_openai import ChatOpenAI
 
 # ── Configure logging ─────────────────────────────────────
 logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -35,10 +34,11 @@ def flag_from_score(score: float) -> str:
 
 
 SUGGESTIONS = {
-    "stable":   "No action needed.",
+    "stable": "No action needed.",
     "drifting": "Consider sending a check-in message.",
-    "concern":  "Recommend escalation or a one-on-one conversation."
+    "concern": "Recommend escalation or a one-on-one conversation.",
 }
+
 
 def build_qa_chain(
     pinecone_api_key: str,
@@ -56,15 +56,18 @@ def build_qa_chain(
         qa_chain: LangChain RetrievalQA
         vectorstore: Pinecone vector store client
     """
-    # 1) Monkey-patch Pinecone 
+    # 1) Monkey-patch Pinecone
     if not hasattr(pinecone, "__version__"):
         pinecone.__version__ = "3.0.0"
     pc = pinecone.Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
     from pinecone.db_data.index import Index as PineconeIndexClass
+
     pinecone.Index = PineconeIndexClass
 
     # 2) Set up embeddings: HF-ST for sentence-transformers, OpenAI for ADA
-    if embed_model.startswith("sentence-transformers/") or embed_model.startswith("all-"):
+    if embed_model.startswith("sentence-transformers/") or embed_model.startswith(
+        "all-"
+    ):
         embeddings = HuggingFaceEmbeddings(
             model_name=embed_model,
             model_kwargs={"device": "cpu"},
@@ -79,9 +82,7 @@ def build_qa_chain(
 
     # 3) Connect to existing Pinecone index
     vectorstore = LC_Pinecone.from_existing_index(
-        embedding=embeddings,
-        index_name=index_name,
-        text_key="content"
+        embedding=embeddings, index_name=index_name, text_key="content"
     )
     retriever = vectorstore.as_retriever(search_kwargs={"k": k})
 

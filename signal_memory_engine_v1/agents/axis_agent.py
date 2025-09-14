@@ -8,6 +8,7 @@ load_dotenv()
 
 ROLE_AXIS = "Axis™ Relationship Architect"
 
+
 @lru_cache(maxsize=1)
 def get_axis_chain():
     return build_qa_chain(

@@ -31,9 +31,12 @@ A conversational Retrieval-Augmented Generation (RAG) microservice powered by Fa
 2. [Installation](#installation)  
 3. [Configuration](#configuration)  
 4. [Running the API](#running-the-api)  
-5. [Endpoints](#endpoints)  
-6. [Streamlit UI](#streamlit-ui)  
-7. [Project Structure](#project-structure)
+5. [Running with Docker](#running-with-docker)  
+6. [Running with core.py](#running-with-corepy) 
+7. [Endpoints](#endpoints)  
+8. [Pipeline Diagram](#pipeline-diagram)  
+9. [Streamlit UI](#streamlit-ui)  
+10. [Project Structure](#project-structure)
 
 ---
 
@@ -74,6 +77,7 @@ OPENAI_API_KEY=<your-openai-api-key>
 OPENAI_MODEL=<your-openai-model>                  # e.g. gpt-4o-mini
 MLFLOW_TRACKING_URI=                              # optional; falls back to ./mlruns
 MLFLOW_EXPERIMENT_NAME=<your-experiment-name>
+ENABLED_AGENTS=<your-agents>                      # e.g. AXIS,ORIA,SENTINEL
 SME_DB_PATH=<your-SME_DB_PATH>
 SME_TEST_MODE=<0-or-1>                            # optional test switch; default 0 (off)
 ```
@@ -88,6 +92,51 @@ uvicorn api.main:app --reload
 ```
 
 The API will run at `http://127.0.0.1:8000`.
+
+---
+
+## Running with Docker
+
+> Ensure your `.env` is present in the repo root (see [Configuration](#configuration)).
+
+### Using Docker Compose
+
+```yaml
+# docker-compose.yml (example)
+services:
+  api:
+    build: .
+    env_file: .env
+    ports: ["8000:8000"]
+    volumes:
+      - ./mlruns:/app/mlruns
+      - ./data:/app/data
+    command: >
+      uvicorn signal_memory_engine_v1.api.main:app
+      --host 0.0.0.0 --port 8000 --log-level debug
+```
+
+Run:
+
+```bash
+docker compose up --build
+```
+
+> Tip: set `SME_DB_PATH=/app/data/signal.db` in `.env` so SQLite persists to the mounted volume.
+
+---
+
+## Running with `core.py`
+
+`core.py` builds a **RetrievalQA** chain and **Pinecone** vectorstore **without** the FastAPI server—useful for quick experiments.
+
+> Ensure `.env` is populated (OpenAI + Pinecone vars).  
+
+Run it:
+
+```bash
+python core.py
+```
 
 ---
 
@@ -208,35 +257,6 @@ Each `AgentResponse` matches the single-agent response schema.
 }
 ```
 
-### Drift History
-
-**GET** `/drift{user_id}`
-
-**Query Parameters**:
-
-* `limit` (int, default = 10) — number of recent events.
-
-**Response**:
-
-```json
-[
-  {
-    "id": 1,
-    "timestamp": "2025-09-11T22:39:54.123Z",
-    "user_id": "u123",
-    "user_query": "Hello world",
-    "signal_type": "relational",
-    "drift_score": 0.3,
-    "emotional_tone": 0.5,
-    "agent_id": "Selah",
-    "payload": {"foo": "bar"},
-    "relationship_context": "manager",
-    "diagnostic_notes": "sample note",
-    "escalate_flag": 0
-  }
-]
-```
-
 ### Memory Search
 
 **GET** `/memory/search`
@@ -259,6 +279,106 @@ Each `AgentResponse` matches the single-agent response schema.
     "metadata": {"source": "pinecone"}
   }
 ]
+```
+
+### Agents
+
+**GET** `/agents`
+
+Lists agents known to the service and whether each is **enabled**, based on the `ENABLED_AGENTS` environment variable (comma-separated).
+
+**Response**:
+
+```json
+{
+  "agents": [
+    {"role": "Axis", "enabled": true},
+    {"role": "Oria", "enabled": true},
+    {"role": "Sentinel", "enabled": false}
+  ]
+}
+```
+
+### Trust Score
+
+**POST** `/score`
+
+Accepts the same body as `/query` but returns only the derived trust score and flag, for lightweight health/sanity checks.
+
+**Request Body**:
+
+```json
+{
+  "query": "Your question here",
+  "k": 3
+}
+```
+
+**Response**:
+
+```json
+{
+  "trust_score": 0.72,
+  "flag": "drifting"
+}
+```
+
+---
+
+## Pipeline Diagram
+
+### High-level request path (API)
+
+```mermaid
+flowchart LR
+    subgraph Client
+      U[User / UI / cURL]
+    end
+
+    subgraph API[FastAPI]
+      A[Collect biometrics] --> B[Build prompt]
+      B --> C[LLM (invoke)]
+      B --> D[Vector search (Pinecone)]
+      D --> E[map_events_to_memory (Coherence Commons)]
+      C --> F[Compose response]
+      E --> F
+      F --> G[Trace log + MLflow]
+    end
+
+    U -->|/query or /multi_query| A
+```
+
+### Multi-agent fan-out + router
+
+```mermaid
+flowchart TB
+    Q[Request] --> R[router_stub.route_agent]
+    R -->|advisory| AX[Axis QA] & OR[Oria QA] & MS[M Sentinel QA]
+    R -->|enforced (ROUTER_ENFORCE=1)| CH[Chosen agent only]
+
+    AX --> VS1[(Axis store)] --> M1[map_events_to_memory]
+    OR --> VS2[(Oria store)] --> M2[map_events_to_memory]
+    MS --> VS3[(Sentinel store)] --> M3[map_events_to_memory]
+
+    M1 --> AGG[Aggregate events/scores]
+    M2 --> AGG
+    M3 --> AGG
+
+    AGG --> FLAGS{flag_from_score / suggestions}
+    FLAGS --> RESP[Response + escalation if concern]
+```
+
+### Ingestion → Coherence → Storage
+
+```mermaid
+flowchart LR
+    IN[Raw inputs (docs/json)] --> SPLIT[Chunking / normalizer]
+    SPLIT --> EMB[Embeddings]
+    EMB --> PIN[(Pinecone Index)]
+    PIN -.-> RET[Retriever]
+    RET -.-> API[/query, /multi_query/]
+    IN --> COH[Coherence Commons (map, tag, suggest)]
+    COH --> DB[(SQLite)]
 ```
 
 ---

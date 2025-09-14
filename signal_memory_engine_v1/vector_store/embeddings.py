@@ -11,20 +11,24 @@ from langchain.embeddings.base import Embeddings
 from sentence_transformers import SentenceTransformer
 
 from dotenv import load_dotenv
+
 load_dotenv()  # loads .env into os.environ (OPENAI_API_KEY, etc.)
 
 # ── Configuration ─────────────────────────────────────────
 # Default models and keys
 DEFAULT_EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-ada-002")
-DEFAULT_API_KEY    = os.getenv("OPENAI_API_KEY", "")
+DEFAULT_API_KEY = os.getenv("OPENAI_API_KEY", "")
 # Toggle source of embeddings: if set, use OpenAI; otherwise use local SentenceTransformer
 USE_OPENAI = os.getenv("USE_OPENAI_EMBEDDINGS") is not None
 
 # ── Initialize local model (384-dim) ────────────────────────
 _local_model = SentenceTransformer("all-MiniLM-L6-v2")
 
+
 # ── OpenAI Embedder Factory ───────────────────────────────
-def get_embedder(model: Optional[str] = None, openai_api_key: Optional[str] = None) -> OpenAIEmbeddings:
+def get_embedder(
+    model: Optional[str] = None, openai_api_key: Optional[str] = None
+) -> OpenAIEmbeddings:
     """
     Return a LangChain-compatible OpenAIEmbeddings instance.
 
@@ -36,6 +40,7 @@ def get_embedder(model: Optional[str] = None, openai_api_key: Optional[str] = No
         model=model or DEFAULT_EMBED_MODEL,
         openai_api_key=openai_api_key or DEFAULT_API_KEY,
     )
+
 
 # ── Unified embedding interface ─────────────────────────────
 def get_embedding(text: str) -> List[float]:
@@ -53,12 +58,14 @@ def get_embedding(text: str) -> List[float]:
     else:
         return _local_model.encode(text, show_progress_bar=False).tolist()
 
+
 # ── Legacy local embeddings (explicit) ─────────────────────
 def get_local_embedding(text: str) -> List[float]:
     """
     Embed a single text string locally using SentenceTransformer.
     """
     return _local_model.encode(text, show_progress_bar=False).tolist()
+
 
 # ── Chunked local embedding ─────────────────────────────────
 def process_text_to_embeddings(text: str, width: int = 512) -> List[List[float]]:
@@ -67,7 +74,10 @@ def process_text_to_embeddings(text: str, width: int = 512) -> List[List[float]]
     Returns a list of embedding vectors.
     """
     chunks = wrap(text, width)
-    return [_local_model.encode(chunk, show_progress_bar=False).tolist() for chunk in chunks]
+    return [
+        _local_model.encode(chunk, show_progress_bar=False).tolist() for chunk in chunks
+    ]
+
 
 # ── Utility ID generator ───────────────────────────────────
 def generate_id_from_text(text: str) -> str:

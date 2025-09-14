@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from typing import Dict, Any
 
+
 def normalize_event(raw: Dict[str, Any]) -> Dict[str, Any]:
     """
     Take a raw event dict (e.g. chat message, biometric sample, log line)
@@ -33,12 +34,21 @@ def normalize_event(raw: Dict[str, Any]) -> Dict[str, Any]:
     text = re.sub(r"[\r\n\t]+", " ", text).strip()
     clean["text"] = text
 
-    # 3) Source / agent tag  
+    # 3) Source / agent tag
     clean["source"] = raw.get("agent") or raw.get("source") or "unknown"
 
     # 4) Carry forward any other metadata
     for k, v in raw.items():
-        if k not in ("timestamp", "time", "ts", "text", "content", "message", "agent", "source"):
+        if k not in (
+            "timestamp",
+            "time",
+            "ts",
+            "text",
+            "content",
+            "message",
+            "agent",
+            "source",
+        ):
             clean[k] = v
 
     return clean

@@ -8,6 +8,7 @@ load_dotenv()
 
 ROLE_ORIA = "Oria™ HR Oracle"
 
+
 @lru_cache(maxsize=1)
 def get_oria_chain():
     return build_qa_chain(

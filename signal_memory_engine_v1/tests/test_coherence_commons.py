@@ -22,7 +22,6 @@ What we verify:
 from datetime import datetime
 import re
 
-import pytest
 
 # Import the module under test
 from coherence.commons import (

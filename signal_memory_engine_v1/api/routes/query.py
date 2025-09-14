@@ -1,5 +1,6 @@
-import uuid, time
-from fastapi import APIRouter, HTTPException
+import uuid
+import time
+from fastapi import APIRouter
 from sensors.biometric import sample_all_signals
 from api.models import QueryRequest, QueryResponse, Chunk
 from api import deps
@@ -8,10 +9,11 @@ from utils.tracing import trace_log
 
 router = APIRouter()
 
+
 @router.post("/query", response_model=QueryResponse)
 def query_endpoint(req: QueryRequest):
     request_id = uuid.uuid4().hex
-    start_ts   = time.time()
+    start_ts = time.time()
 
     # biometrics
     signals = sample_all_signals()
@@ -30,21 +32,21 @@ def query_endpoint(req: QueryRequest):
     answer = invoke_chain(deps.qa, full_prompt)
 
     # retrieve & score
-    raw_hits  = deps.vectorstore.similarity_search_with_score(req.query, k=req.k)
-    events    = [
+    raw_hits = deps.vectorstore.similarity_search_with_score(req.query, k=req.k)
+    events = [
         {"content": h[0].page_content, "score": float(h[1])} for h in raw_hits
     ]  # lightweight mapping; keep your map_events_to_memory if preferred
-    top_score = max((e['score'] for e in events), default=0.0)
-    flag      = deps.flag_from_score(top_score)
-    suggestion= deps.SUGGESTIONS[flag]
-    chunks    = [Chunk(content=e['content'], score=e['score']) for e in events]
+    top_score = max((e["score"] for e in events), default=0.0)
+    flag = deps.flag_from_score(top_score)
+    suggestion = deps.SUGGESTIONS[flag]
+    chunks = [Chunk(content=e["content"], score=e["score"]) for e in events]
 
     trace_log("single-agent", req.query, flag, top_score, request_id)
 
     return QueryResponse(
-        answer      = answer,
-        chunks      = chunks,
-        flag        = flag,
-        suggestion  = suggestion,
-        trust_score = top_score,
+        answer=answer,
+        chunks=chunks,
+        flag=flag,
+        suggestion=suggestion,
+        trust_score=top_score,
     )
