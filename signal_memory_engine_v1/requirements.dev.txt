@@ -1,0 +1,7 @@
+iniconfig==2.1.0
+pluggy==1.6.0
+pytest==8.4.2
+ruff==0.13.0
+
+# Windows-only helper (avoid in Linux containers)
+pywin32>=305; sys_platform == "win32"

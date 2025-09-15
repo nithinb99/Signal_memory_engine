@@ -1,27 +1,20 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .venv/
 venv/
+env/
 
-# VCS
-.git/
-.gitignore
+# Node
+node_modules/
 
-# Data / artifacts
+# Local artifacts
 mlruns/
-data/
 *.db
 *.sqlite
-*.log
 
-# OS/IDE
-.DS_Store
-.vscode/
-.idea/
-
-# Node / front-end (if present)
-node_modules/
-dist/
-.out/
-.next/
+# Git
+.git
+.gitignore

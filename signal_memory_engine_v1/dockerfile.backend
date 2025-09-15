@@ -1,33 +1,12 @@
-# syntax=docker/dockerfile:1.6
 FROM python:3.11-slim
-
-ENV PIP_DEFAULT_TIMEOUT=120 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
+ENV PIP_NO_CACHE_DIR=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# System deps help avoid source builds
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl git ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+COPY requirements.backend.txt ./requirements.txt
+RUN python -m pip install --upgrade pip && pip install --prefer-binary -r requirements.txt
 
-# 1) Upgrade pip/setuptools/wheel FIRST (more reliable entrypoint handling)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade pip setuptools wheel
-
-# 2) Preinstall heavy scientific wheels BEFORE the big requirements to avoid f2py churn
-#    (match your pins so pip won't try to reinstall them later)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --prefer-binary \
-      numpy==2.2.3 \
-      pandas==2.3.2 \
-      pyarrow==21.0.0
-
-# 3) Now install the rest (keep your existing requirements.txt as-is)
-COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --prefer-binary --no-cache-dir -r requirements.txt
-
+# copy your code
 COPY . .
+
 EXPOSE 8000
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
