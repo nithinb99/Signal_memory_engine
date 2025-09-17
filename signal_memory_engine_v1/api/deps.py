@@ -37,7 +37,7 @@ try:
     import mlflow.openai
     mlflow.openai.autolog()
 except Exception:
-    mlflow.get_logger().warning("mlflow-openai plugin not installed; skipping OpenAI autolog.")
+    logger.warning("mlflow-openai plugin not installed; skipping OpenAI autolog.")
 
 mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
 if mlflow_uri:
@@ -51,11 +51,11 @@ else:
     except Exception:
         mlflow.set_tracking_uri(str(mlruns_dir.resolve()))
 
-EXP_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "signal-memory-engine")
-_client = MlflowClient()
-if _client.get_experiment_by_name(EXP_NAME) is None:
-    _client.create_experiment(EXP_NAME)
-mlflow.set_experiment(EXP_NAME)
+# EXP_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "signal-memory-engine")
+# _client = MlflowClient()
+# if _client.get_experiment_by_name(EXP_NAME) is None:
+#     _client.create_experiment(EXP_NAME)
+# mlflow.set_experiment(EXP_NAME)
 
 # pinecone + embedder + default QA chain
 init_pinecone_index(

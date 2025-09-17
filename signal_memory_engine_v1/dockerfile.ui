@@ -1,11 +1,16 @@
-FROM python:3.11-slim
-ENV PIP_NO_CACHE_DIR=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+FROM mambaorg/micromamba:1.5.10-jammy AS base
+
+ENV MAMBA_DOCKERFILE_ACTIVATE=1
 WORKDIR /app
 
-COPY requirements.ui.txt ./requirements.txt
-RUN python -m pip install --upgrade pip && pip install --prefer-binary -r requirements.txt
+COPY environment.yml /tmp/environment.yml
+RUN micromamba create -y -f /tmp/environment.yml && micromamba clean -a -y
+
+ARG ENV_NAME=sme310
+ENV CONDA_DEFAULT_ENV=${ENV_NAME}
+ENV PATH=/opt/conda/envs/${ENV_NAME}/bin:$PATH
 
 COPY streamlit_app.py dashboard.py ./
 
 EXPOSE 8501
-CMD ["streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+CMD ["bash", "-lc", "streamlit run streamlit_app.py --server.address=0.0.0.0 --server.port=8501"]
