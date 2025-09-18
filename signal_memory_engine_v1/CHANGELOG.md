@@ -1,12 +1,11 @@
 # Changelog — Signal Memory Engine
 
-All notable changes to this project are documented here.
+All notable changes to version 2 of this project are documented here.
 
 ---
 
 ## [Unreleased]
 - Possible future changes:
-  - Route versioning (`/api/v1/...`) for public endpoints.
   - Config centralization into a `config.py` with validated env vars.
 
   ---
