@@ -31,11 +31,11 @@ A conversational Retrieval-Augmented Generation (RAG) microservice powered by Fa
 2. [Installation](#installation)  
 3. [Configuration](#configuration)  
 4. [Running the API](#running-the-api)  
-5. [Running with Docker](#running-with-docker)  
-6. [Running with core.py](#running-with-corepy) 
-7. [Endpoints](#endpoints)  
-8. [Pipeline Diagram](#pipeline-diagram)  
-9. [Streamlit UI](#streamlit-ui)  
+5. [Streamlit UI](#streamlit-ui)  
+6. [Running with Docker](#running-with-docker)  
+7. [Running with core.py](#running-with-corepy) 
+8. [Endpoints](#endpoints)  
+9. [Pipeline Diagram](#pipeline-diagram) 
 10. [Project Structure](#project-structure)
 
 ---
@@ -60,7 +60,7 @@ cd signal_memory_engine_v1
 
 ```bash
 # Create & activate virtual environment
-python -m venv venv
+python3.10 -m venv venv
 source venv/bin/activate  # or .\venv\Scripts\activate on Windows
 
 # Install dependencies
@@ -101,11 +101,34 @@ SME_TEST_MODE=<0-or-1>                            # optional test switch; defaul
 ## Running the API
 
 ```bash
-# Start FastAPI server with live reload
-uvicorn api.main:app --reload
+# Start FastAPI server
+uvicorn api.main:app
+
+# Start FastAPI server with live reload (only track key directories)
+uvicorn api.main:app --reload \
+  --reload-dir api --reload-dir agents --reload-dir coherence \
+  --reload-dir utils --reload-dir storage --reload-dir scripts
 ```
 
 The API will run at `http://127.0.0.1:8000`.
+
+---
+
+## Streamlit UI
+
+Run the Streamlit app:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+The sidebar allows you to configure:
+
+* **Backend URL** (e.g. `http://localhost:8000`)
+* **Mode**: Single-Agent vs. Multi-Agent
+* **Number of chunks (k)**
+
+Submit a query to see answers, chunks, flags, suggestions, and drift visualizations.
 
 ---
 
@@ -350,24 +373,6 @@ flowchart LR
   IN --> COH[Coherence mapping]
   COH --> DB[(SQLite)]
 ```
-
----
-
-## Streamlit UI
-
-Run the Streamlit app:
-
-```bash
-streamlit run streamlit_app.py
-```
-
-The sidebar allows you to configure:
-
-* **Backend URL** (e.g. `http://localhost:8000`)
-* **Mode**: Single-Agent vs. Multi-Agent
-* **Number of chunks (k)**
-
-Submit a query to see answers, chunks, flags, suggestions, and drift visualizations.
 
 ---
 
