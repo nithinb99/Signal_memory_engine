@@ -6,10 +6,10 @@ import json
 import glob
 from dotenv import load_dotenv
 
-load_dotenv()
-
 from vector_store.pinecone_index import init_pinecone_index, index
 from vector_store.embeddings import get_embedder
+
+load_dotenv()
 
 # ── CONFIG ───────────────────────────────────────────────────
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")

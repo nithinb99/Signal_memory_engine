@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 import mlflow
-from mlflow.tracking import MlflowClient
 
 from vector_store.pinecone_index import init_pinecone_index
 from vector_store.embeddings import get_embedder

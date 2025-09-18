@@ -2,7 +2,6 @@
 # api/routes/multi.py  →  POST /multi_query
 # ============================================================================
 import uuid
-import time
 from typing import Dict
 from fastapi import APIRouter, BackgroundTasks
 from sensors.biometric import sample_all_signals
@@ -30,7 +29,6 @@ def notify_human_loop(query: str, agents: list[str]) -> None:
 @router.post("/multi_query", response_model=MultiQueryResponse)
 def multi_query(req: QueryRequest, bg: BackgroundTasks):
     request_id = uuid.uuid4().hex
-    start_ts = time.time()
 
     signals = sample_all_signals()
     prefix = (

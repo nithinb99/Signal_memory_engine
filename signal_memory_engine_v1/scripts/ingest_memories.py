@@ -8,14 +8,14 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 
+from vector_store.pinecone_index import init_pinecone_index
+from vector_store.embeddings import get_embedding
+
 # ensure project root is on PYTHONPATH so vector_store can be imported
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 load_dotenv()
-
-from vector_store.pinecone_index import init_pinecone_index
-from vector_store.embeddings import get_embedding
 
 # 1) Initialize Pinecone & grab the Index object
 index = init_pinecone_index(

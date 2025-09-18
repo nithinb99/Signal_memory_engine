@@ -3,7 +3,6 @@
 # ============================================================================
 
 import json
-from datetime import datetime
 
 TRACE_LOG_FILE = "trace.log"
 

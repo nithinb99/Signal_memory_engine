@@ -59,7 +59,6 @@ def build_qa_chain(
     # 1) Monkey-patch Pinecone
     if not hasattr(pinecone, "__version__"):
         pinecone.__version__ = "3.0.0"
-    pc = pinecone.Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
     from pinecone.db_data.index import Index as PineconeIndexClass
 
     pinecone.Index = PineconeIndexClass

@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Signal Memory RAG API", lifespan=lifespan)
 
-# include routers (keeps your existing signal router stub intact)
+# routers
 app.include_router(signal_routes.router)
 app.include_router(query_routes.router)
 app.include_router(multi_routes.router)

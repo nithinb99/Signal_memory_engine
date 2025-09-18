@@ -1,5 +1,4 @@
 import uuid
-import time
 from fastapi import APIRouter
 from sensors.biometric import sample_all_signals
 from api.models import QueryRequest, QueryResponse, Chunk
@@ -13,7 +12,6 @@ router = APIRouter()
 @router.post("/query", response_model=QueryResponse)
 def query_endpoint(req: QueryRequest):
     request_id = uuid.uuid4().hex
-    start_ts = time.time()
 
     # biometrics
     signals = sample_all_signals()

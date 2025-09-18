@@ -4,12 +4,12 @@ import time
 import argparse
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+from api.main import app  # now it will find api/main.py
+
 # ── make sure project root is on the import path ───────────────
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-
-from fastapi.testclient import TestClient
-from api.main import app  # now it will find api/main.py
 
 # ── in-process client ─────────────────────────────────────────
 client = TestClient(app)
@@ -55,7 +55,6 @@ def validate_memory_log(data):
 
 
 def validate_agents_list(data):
-    # Optional endpoint; only validate if present and 200
     assert "agents" in data and isinstance(data["agents"], list)
     for a in data["agents"]:
         assert "role" in a
@@ -64,7 +63,6 @@ def validate_agents_list(data):
 
 
 def validate_score(data):
-    # Optional endpoint; only validate if present and 200
     assert "trust_score" in data and "flag" in data
     assert data["flag"] in {"stable", "drifting", "concern"}
     return True
@@ -92,7 +90,7 @@ def run_smoke(k: int = 3, limit: int = 5):
         validate_memory_log(data)
         print("[MEMORY-LOG] ✅ schema OK\n")
 
-    # 4) (Optional) AGENTS
+    # 4) AGENTS
     data, _, _ = test_endpoint("AGENTS", "get", "/agents")
     if data:
         try:
@@ -103,7 +101,7 @@ def run_smoke(k: int = 3, limit: int = 5):
     else:
         print("[AGENTS] (skipped) endpoint not present or failed\n")
 
-    # 5) (Optional) SCORE
+    # 5) SCORE
     data, _, _ = test_endpoint("SCORE", "post", "/score", payload=payload)
     if data:
         try:

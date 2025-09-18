@@ -42,7 +42,7 @@ A conversational Retrieval-Augmented Generation (RAG) microservice powered by Fa
 
 ## Prerequisites
 
-* Python 3.9+  
+* Python 3.10 
 * Pinecone account (API key & environment)  
 * OpenAI account (API key)  
 
@@ -54,13 +54,27 @@ A conversational Retrieval-Augmented Generation (RAG) microservice powered by Fa
 # Clone repository
 git clone https://github.com/your-org/signal_memory_engine_v1.git
 cd signal_memory_engine_v1
+```
 
+### Option A: Pip
+
+```bash
 # Create & activate virtual environment
 python -m venv venv
 source venv/bin/activate  # or .\venv\Scripts\activate on Windows
 
 # Install dependencies
 pip install -r requirements.txt
+```
+
+### Option B: Conda
+
+```bash
+# Create env from environment.yml and activate it
+conda env create -f environment.yml
+
+# If your environment.yml names the env (e.g., "sme310"), activate it:
+conda activate sme310
 ```
 
 ---
@@ -97,46 +111,22 @@ The API will run at `http://127.0.0.1:8000`.
 
 ## Running with Docker
 
-> Ensure your `.env` is present in the repo root (see [Configuration](#configuration)).
-
-### Using Docker Compose
-
-```yaml
-# docker-compose.yml (example)
-services:
-  api:
-    build: .
-    env_file: .env
-    ports: ["8000:8000"]
-    volumes:
-      - ./mlruns:/app/mlruns
-      - ./data:/app/data
-    command: >
-      uvicorn signal_memory_engine_v1.api.main:app
-      --host 0.0.0.0 --port 8000 --log-level debug
-```
-
-Run:
-
 ```bash
+# Start & Build Docker Containers
 docker compose up --build
 ```
 
-> Tip: set `SME_DB_PATH=/app/data/signal.db` in `.env` so SQLite persists to the mounted volume.
+> Ensure your `.env` is present in the repo root (see [Configuration](#configuration)).
 
 ---
 
 ## Running with `core.py`
 
-`core.py` builds a **RetrievalQA** chain and **Pinecone** vectorstore **without** the FastAPI server—useful for quick experiments.
-
-> Ensure `.env` is populated (OpenAI + Pinecone vars).  
-
-Run it:
-
 ```bash
 python core.py
 ```
+
+> `core.py` builds a **RetrievalQA** chain and **Pinecone** vectorstore **without** the FastAPI server—useful for quick experiments.
 
 ---
 
@@ -389,6 +379,7 @@ Submit a query to see answers, chunks, flags, suggestions, and drift visualizati
 	├── __init__.py                       # Top-level package marker
 	├── README.md                         # Project documentation
 	├── requirements.txt                  # Python dependencies
+  ├── environment.yml                   # Conda environment (optional)
 	├── pytest.ini                        # Pytest configuration
 	├── .env.example                      # Example environment variables (copy to .env)
 	├── starter.sh                        # Helper script to launch the service
