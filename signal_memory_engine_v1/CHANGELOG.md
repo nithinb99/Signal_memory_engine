@@ -36,9 +36,13 @@ All notable changes to this project are documented here.
   - Generated **App Flow PDFs**:
     - `query_endpoint_flow.pdf` — request lifecycle for `/query`.
     - `ingestion_coherence_storage_flow.pdf` — pipeline stages for ingestion, coherence, storage.
+  - Created mermaid diagrams
 
 - **Lightweight Testing**
   - Added basic tests for each stage (ingestion, coherence, storage) to ensure end-to-end reliability.
+
+- **Conda Compatibility**
+  - Added environment.yml for conda package installation
 
 - **MLflow Bootstrapping & Observability**
   - Falls back to a Windows-safe local `file://` tracking URI when `MLFLOW_TRACKING_URI` is unset.
@@ -63,9 +67,12 @@ All notable changes to this project are documented here.
   - Added `SME_TEST_MODE` flag for lightweight test runs.
 - MLflow experiment bootstrap now uses experiment name instead of numeric IDs.
 - Moved heavy initialization (Pinecone, QA chains) into `deps.py` instead of importing in every route.
+- Added dynamic backend URL loading depending on if application is started via docker or directly in console with uvicorn.
+- Moved mlflow docker service setup to dockerfile.mlflow
 
 ### Fixed
 - Pydantic v2 compatibility warnings.
 - Consistent import style across modules (`api`, `agents`, `utils`).
 - Logs and storage now handle JSON payloads safely (normalize stringified payloads).
 - Autologging for LangChain, OpenAI, and transformers integrated with MLflow.
+- Dependency mismatch
