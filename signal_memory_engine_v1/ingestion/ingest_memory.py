@@ -8,14 +8,17 @@ import csv
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from vector_store.pinecone_index import init_pinecone_index, index
-from vector_store.embeddings import get_embedder
+from signal_memory_engine_v1.vector_store.pinecone_index import init_pinecone_index
+from signal_memory_engine_v1.vector_store.embeddings import get_embedder
+
+# ---- test mode guard (skip external init under tests) ---- (v2)
+TEST_MODE = os.getenv("SME_TEST_MODE") == "1"
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENV     = os.getenv("PINECONE_ENV", "us-east-1")
-INDEX_NAME       = os.getenv("PINECONE_INDEX", "signal-engine")
-OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY")
+PINECONE_ENV = os.getenv("PINECONE_ENV", "us-east-1")
+INDEX_NAME = os.getenv("PINECONE_INDEX", "signal-engine")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # list every data file you want ingested here
 DATA_FILES = [
@@ -26,22 +29,37 @@ DATA_FILES = [
     # "data/your_other.csv",     # if you have CSV
 ]
 
-# ── INITIALIZE ──────────────────────────────────────────────────────────────
-init_pinecone_index(
-    api_key=PINECONE_API_KEY,
-    environment=PINECONE_ENV,
-    index_name=INDEX_NAME,
-    dimension=384,
-    metric="cosine",
-)
+# ── INITIALIZE ──────────────────────────────────────────────
+if not TEST_MODE:
+    init_pinecone_index(
+        api_key=PINECONE_API_KEY,
+        environment=PINECONE_ENV,
+        index_name=INDEX_NAME,
+        dimension=384,
+        metric="cosine",
+    )
 
-embedder = get_embedder(
-    openai_api_key=OPENAI_API_KEY,
-    model="text-embedding-ada-002",
-)
+    embedder = get_embedder(
+        openai_api_key=OPENAI_API_KEY,
+        model="text-embedding-ada-002",
+    )
+else:  # (v2)
+    # harmless dummies used only in tests
+    class _DummyIndex:
+        def upsert(self, vectors):
+            pass
+
+    class _DummyEmbedder:
+        def embed_query(self, text):
+            return [0.0, 0.0, 0.0]
+
+    index = _DummyIndex()
+    embedder = _DummyEmbedder()
 
 
-def normalize_record(rec: Dict[str, Any], source: str) -> Tuple[str, str, Dict[str, Any]]:
+def normalize_record(
+    rec: Dict[str, Any], source: str
+) -> Tuple[str, str, Dict[str, Any]]:
     """
     Turn any input record into (id, content, metadata).
     Looks for common content fields, falls back to uuid.
@@ -55,7 +73,12 @@ def normalize_record(rec: Dict[str, Any], source: str) -> Tuple[str, str, Dict[s
         raise ValueError(f"No content field in record: {rec}")
 
     # pick an existing id if present, else make one
-    record_id = rec.get("id") or rec.get("thread_id") or rec.get("timestamp") or f"{source}-{uuid.uuid4().hex}"
+    record_id = (
+        rec.get("id")
+        or rec.get("thread_id")
+        or rec.get("timestamp")
+        or f"{source}-{uuid.uuid4().hex}"
+    )
 
     # metadata: include source and all remaining fields
     meta = {"source": source}
@@ -63,7 +86,9 @@ def normalize_record(rec: Dict[str, Any], source: str) -> Tuple[str, str, Dict[s
     return record_id, content, meta
 
 
-def upsert_batch(batch: List[Tuple[str, List[float], Dict[str, Any]]], batch_size: int = 100):
+def upsert_batch(
+    batch: List[Tuple[str, List[float], Dict[str, Any]]], batch_size: int = 100
+):
     """Upsert vectors to Pinecone in batches."""
     for i in range(0, len(batch), batch_size):
         index.upsert(vectors=batch[i : i + batch_size])

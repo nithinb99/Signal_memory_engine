@@ -1,9 +1,47 @@
+import os
+from urllib.parse import urljoin
+
 import streamlit as st
 import requests
 import matplotlib.pyplot as plt
 from dashboard import show_dashboard
 
 # Basic Streamlit UI for Signal Memory RAG backend with drift visualization
+
+# ---- Backend reachability helpers -------------------------------------------
+
+PROBE_PATHS = ("/healthz", "/health", "/docs", "/")  # try a few common endpoints
+CANDIDATE_URLS = (
+    os.getenv("BACKEND_URL"),       # if provided via environment/compose
+    "http://backend:8000",          # works from inside Docker
+    "http://localhost:8000",        # works from host
+)
+
+def backend_is_running(base_url: str, timeout: float = 0.75) -> bool:
+    """Return True if any probe path responds (2xx or 4xx is fine)."""
+    if not base_url:
+        return False
+    for p in PROBE_PATHS:
+        try:
+            r = requests.get(urljoin(base_url.rstrip("/") + "/", p.lstrip("/")), timeout=timeout)
+            if 200 <= r.status_code < 500:
+                return True
+        except requests.RequestException:
+            continue
+    return False
+
+def pick_backend() -> str:
+    """Pick the first reachable candidate URL; otherwise fall back to localhost."""
+    for url in CANDIDATE_URLS:
+        if url and backend_is_running(url):
+            return url
+    # usable fallback so user can edit it
+    for url in CANDIDATE_URLS:
+        if url:
+            return url
+    return "http://localhost:8000"
+
+# ---- Plotting / UI helpers ---------------------------------------------------
 
 def plot_drift(scores: dict):
     """
@@ -39,6 +77,7 @@ def display_flag(flag: str, suggestion: str):
         st.error(f"Flag: {flag}")
     st.write(f"Suggestion: {suggestion}")
 
+# ---- App ---------------------------------------------------------------------
 
 def main():
     page = st.sidebar.radio("Page", ["Interface", "Dashboard"])
@@ -48,7 +87,10 @@ def main():
     st.title("Signal Memory RAG Interface")
     st.sidebar.header("Settings")
 
-    backend_url = st.sidebar.text_input("Backend URL", "http://localhost:8000")
+    # Detect once at startup
+    initial_url = pick_backend()
+    backend_url = st.sidebar.text_input("Backend URL", initial_url, key="backend_url")
+        
     mode = st.sidebar.selectbox("Mode", ["Single-Agent", "Multi-Agent"])
     k = st.sidebar.slider("Number of chunks (k)", min_value=1, max_value=10, value=3)
 
@@ -85,7 +127,7 @@ def main():
             display_flag(data.get("flag", ""), data.get("suggestion", ""))
 
             # Drift Gauge
-            top_score = max((c['score'] for c in data.get('chunks', [])), default=0.0)
+            top_score = max((c["score"] for c in data.get("chunks", [])), default=0.0)
             st.subheader("Drift Gauge")
             fig = plot_drift({mode: top_score})
             st.pyplot(fig)
@@ -110,7 +152,7 @@ def main():
                 display_flag(result.get("flag", ""), result.get("suggestion", ""))
 
                 # collect for drift chart
-                top = max((c['score'] for c in result.get('chunks', [])), default=0.0)
+                top = max((c["score"] for c in result.get("chunks", [])), default=0.0)
                 drift_scores[role] = top
 
             st.subheader("Drift Visualization")

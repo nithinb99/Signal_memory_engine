@@ -1,0 +1,8 @@
+Current biometric readings:
+• HRV: 89.5 ms
+• Temp: 37.2 °C
+• Blink rate: 19.0 bpm
+
+Use this context to answer the question below.
+
+Question: Why is the sky blue?

@@ -1,0 +1,12 @@
+execution_duration_ms: 2348
+request_preview: '{"query": "Current biometric readings:\n• HRV: 38.8 ms\n• Temp:
+  36.5 °C\n• Blink rate: 19.9 bpm\n\nUse this context to answer the question below.\n\nQuestion:
+  Why is the sky blue?"}'
+request_time: '2025-09-12T05:53:14.046Z'
+response_preview: '{"result": "I don''t know."}'
+state: OK
+trace_id: tr-b38af05e0a5ffc958414ed89156eb187
+trace_location:
+  mlflow_experiment:
+    experiment_id: '176452795178630947'
+  type: MLFLOW_EXPERIMENT

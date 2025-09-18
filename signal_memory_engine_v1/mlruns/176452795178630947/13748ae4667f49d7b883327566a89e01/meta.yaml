@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/nate/Desktop/coherence_protocol/Signal_memory_engine/signal_memory_engine_v1/mlruns/176452795178630947/13748ae4667f49d7b883327566a89e01/artifacts
+end_time: 1757544374533
+entry_point_name: ''
+experiment_id: '176452795178630947'
+lifecycle_stage: active
+run_id: 13748ae4667f49d7b883327566a89e01
+run_name: single-634cee4587e94728ae54d1f0b64766db
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1757544370422
+status: 4
+tags: []
+user_id: nate

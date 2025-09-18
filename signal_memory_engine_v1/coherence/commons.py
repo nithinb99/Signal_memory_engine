@@ -2,6 +2,7 @@
 """
 Common utilities for mapping RAG hits (Document, score) pairs into normalized event-memory structures.
 """
+
 import hashlib
 from datetime import datetime
 from typing import List, Tuple, Dict, Any, Optional
@@ -44,10 +45,11 @@ def flag_from_score(score: float) -> str:
     else:
         return "stable"
 
+
 SUGGESTIONS = {
-    "stable":   "No action needed.",
+    "stable": "No action needed.",
     "drifting": "Consider sending a check-in message.",
-    "concern":  "Recommend escalation or a one-on-one conversation."
+    "concern": "Recommend escalation or a one-on-one conversation.",
 }
 
 

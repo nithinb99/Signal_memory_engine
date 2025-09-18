@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/nate/Desktop/coherence_protocol/Signal_memory_engine/signal_memory_engine_v1/mlruns/c2507aa9651d459387ef486810ecb4ce/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '275881910176383650'
+lifecycle_stage: active
+run_id: c2507aa9651d459387ef486810ecb4ce
+run_name: thundering-cow-790
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1757115436428
+status: 1
+tags: []
+user_id: nate
