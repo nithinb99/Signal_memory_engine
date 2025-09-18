@@ -32,7 +32,6 @@ from coherence.commons import (
     SUGGESTIONS,
 )
 
-# Use the same Document class the module expects
 from langchain.schema import Document
 
 
@@ -43,7 +42,7 @@ def test_flag_from_score_boundaries():
         > 0.8  → "concern"
         > 0.5  → "drifting"
         else   → "stable"
-    We check boundary behavior and typical values.
+    Check boundary behavior and typical values.
     """
     # Exactly 0.5 should be "stable"
     assert flag_from_score(0.5) == "stable"
