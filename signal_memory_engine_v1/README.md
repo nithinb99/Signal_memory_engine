@@ -384,7 +384,7 @@ flowchart LR
 	├── __init__.py                       # Top-level package marker
 	├── README.md                         # Project documentation
 	├── requirements.txt                  # Python dependencies
-  ├── environment.yml                   # Conda environment (optional)
+  	├── environment.yml                   # Conda environment (optional)
 	├── pytest.ini                        # Pytest configuration
 	├── .env.example                      # Example environment variables (copy to .env)
 	├── starter.sh                        # Helper script to launch the service
@@ -444,4 +444,5 @@ flowchart LR
 ---
 
 Contributions, issues, and PRs are welcome!
+
 
