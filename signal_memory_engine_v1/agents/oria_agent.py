@@ -1,14 +1,22 @@
 # agents/oria_agent.py
 import os
+from functools import lru_cache
+from dotenv import load_dotenv
 from scripts.langchain_retrieval import build_qa_chain
 
-INDEX_NAME = os.getenv("PINECONE_INDEX_ORIA", "oria-memory")
-qa_oria, store_oria = build_qa_chain(
-    pinecone_api_key=os.getenv("PINECONE_API_KEY"),
-    pinecone_env=os.getenv("PINECONE_ENV", "us-east-1"),
-    index_name=INDEX_NAME,
-    openai_api_key=os.getenv("OPENAI_API_KEY"),
-    embed_model="sentence-transformers/all-MiniLM-L6-v2",
-    llm_model="gpt-3.5-turbo",
-)
+load_dotenv()
+
 ROLE_ORIA = "Oria™ HR Oracle"
+
+
+@lru_cache(maxsize=1)
+def get_oria_chain():
+    return build_qa_chain(
+        pinecone_api_key=os.getenv("PINECONE_API_KEY"),
+        pinecone_env=os.getenv("PINECONE_ENVIRONMENT", "us-west1-gcp"),
+        index_name=os.getenv("PINECONE_INDEX_ORIA", "oria-memory"),
+        openai_api_key=os.getenv("OPENAI_API_KEY"),
+        embed_model="sentence-transformers/all-MiniLM-L6-v2",
+        llm_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        k=3,
+    )
