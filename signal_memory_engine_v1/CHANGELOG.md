@@ -1,8 +1,8 @@
-# Changelog — Signal Memory Engine
+# Changelog — Signal Memory Engine - [v2.0.0]
 
 All notable changes introduced in **PR A — Core/API**.
 
-## [v2.0.0] — 2025-09-21
+## 2025-09-21 - prA Core/API
 
 ### Added
 - **Endpoints**
@@ -60,3 +60,55 @@ All notable changes introduced in **PR A — Core/API**.
 
 ### Semantic Versioning
 - Bumped to **`2.0.0`**: new endpoints, new utils, updated core.py, stronger error handling, and packaging cleanup.
+
+
+## 2025-09-21 - prB Runtime
+
+### Added
+- **Health endpoint** `/health` (`api/routes/health.py`)
+  - Verifies required env vars (e.g., `OPENAI_API_KEY`, `PINECONE_API_KEY`) and a simple filesystem write to `trace.log`.
+  - Returns `200 OK` JSON when healthy; `503` on failures.
+- **CLI healthcheck** `scripts/sme_healthcheck.py`
+  - Hits `$SME_HEALTH_URL` (defaults to `http://localhost:8000/health`) and exits `0`/`1`.
+  - Example: `SME_HEALTH_URL=http://localhost:8000/health python scripts/sme_healthcheck.py && echo OK || echo FAIL`
+- **Docker Compose healthchecks**
+  - `backend` uses the CLI script so the container becomes **healthy** only after `/health` is good.
+  - `mlflow` uses a lightweight `wget` check on `:5000`.
+- **Dependency management (pip)**
+  - Introduced **`requirements.in`** (human-edited, minimal top-level deps with `~=` pin ranges).
+  - Introduced **`requirements-lock.txt`** (fully pinned lock used for reproducible installs and Docker).
+- **Conda parity**
+  - `environment.yml` mirrors `requirements.in` selections (Python 3.10 baseline) for users who prefer Conda/Mamba.
+  - Backend/UI Dockerfiles continue to support the **Conda** path via Micromamba.
+- **Dynamic backend URL (UI)**
+  - Streamlit UI now reads `BACKEND_URL` and falls back to `http://localhost:8000` when not running under Docker. This makes the same UI work both locally and in Compose.
+- **MLflow service image**
+  - MLflow moved into its own image (`dockerfile.mlflow`), started by Compose, and used by backend via `MLFLOW_TRACKING_URI=http://mlflow:5000`.
+
+### Changed
+- **MLflow artifact serving**
+  - The MLflow server now runs with:
+  ```bash
+  --serve-artifacts \
+  --artifacts-destination ./mlflow_server/artifacts
+  ```
+  - The key component is the artifacts-destination flag, which tells the MLflow server where to store the artifacts and enables HTTP-proxied artifact uploads.
+
+### Fixed
+- **Dependency mismatch**
+  - Aligned versions across FastAPI/Starlette/Pydantic, LangChain family, and client SDKs to remove import/runtime warnings.
+  - Resolved differences between pip and Conda environments so the same code path runs under both.
+- **Backend container file permissions**
+  - Ensure the runtime user can read the app tree and import agent modules:
+    ```bash
+    # This resolves PermissionError: [Errno 13] Permission denied: '/app/agents/...' at startup.
+    USER root
+    COPY --chown=mambauser:mambauser . /app
+    RUN chmod -R a+rX /app
+    USER mambauser
+    ```
+- **MLflow PermissionError**
+  - Client was incorrectly trying to write files directly to the server’s file system and caused permission errors.
+
+### Notes
+- No README/docs changes included here; documentation will land in **PR D**.

@@ -10,6 +10,7 @@ from api.routes import multi as multi_routes
 from api.routes import memory as memory_routes
 from api.routes import agents as agents_routes
 from api.routes import score  as score_routes
+from api.routes import health  as health_routes
 
 
 @asynccontextmanager
@@ -28,3 +29,4 @@ app.include_router(multi_routes.router)
 app.include_router(memory_routes.router)
 app.include_router(agents_routes.router)
 app.include_router(score_routes.router)
+app.include_router(health_routes.router)
