@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import Any, Dict
 # from storage.sqlite_store import init_db, insert_event
 # from utils.dashboard import send_to_dashboard
-from signal_memory_engine_v1.storage.sqlite_store import init_db, insert_event
-from signal_memory_engine_v1.utils.dashboard import send_to_dashboard
+from storage.sqlite_store import init_db, insert_event
+from utils.dashboard import send_to_dashboard
 
 DB_PATH = os.getenv("SME_DB_PATH", "./data/signal.db")
 init_db(DB_PATH)
