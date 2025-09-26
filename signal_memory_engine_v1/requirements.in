@@ -1,0 +1,39 @@
+# requirements.in -> a human-edited list of dependencies
+
+# --- Runtime ---
+fastapi~=0.115
+uvicorn~=0.35
+httpx~=0.28
+pydantic~=2.10
+python-dotenv~=1.0
+orjson~=3.11
+
+mlflow~=3.2
+openai~=1.106
+pinecone~=7.3
+
+# LangChain + community bits you actually use
+langchain~=0.3
+langchain-core~=0.3
+langchain-community~=0.3
+langchain-openai~=0.3
+langchain-pinecone~=0.2
+
+# Embeddings / ML
+sentence-transformers~=5.1
+tiktoken~=0.11
+numpy~=1.26
+pandas~=2.3
+scikit-learn~=1.7
+torch==2.2.2           # pin explicitly to avoid surprise upgrades
+
+# UI
+streamlit~=1.49
+
+# --- Dev/Test ---
+pytest~=8.4
+ruff~=0.13
+black~=24.10
+mypy~=1.11
+pre-commit~=3.8
+pip-tools~=7.4
