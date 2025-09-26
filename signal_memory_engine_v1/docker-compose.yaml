@@ -1,44 +1,52 @@
-version: '3.8'
 services:
   mlflow:
-    image: python:3.10-slim
+    build:
+      context: .
+      dockerfile: dockerfile.mlflow
     container_name: mlflow
-    command: >
-      sh -c "pip install mlflow &&
-             mkdir -p /mlruns &&
-             mlflow server
-               --backend-store-uri sqlite:///mlflow.db
-               --default-artifact-root /mlruns
-               --host 0.0.0.0
-               --port 5000"
     ports:
       - "5000:5000"
     volumes:
       - ./mlruns:/mlruns
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: dockerfile.backend
     container_name: backend
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PINECONE_API_KEY=${PINECONE_API_KEY}
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - MLFLOW_EXPERIMENT=SignalMemoryEngine
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_INDEX: ${PINECONE_INDEX}
+      PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT:-us-east-1}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT_NAME: signal-memory-engine
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      PORT: "8000"
     depends_on:
-      - mlflow
+      mlflow:
+        condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "scripts/sme_healthcheck.py"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   ui:
     build:
       context: .
-      dockerfile: Dockerfile.ui
+      dockerfile: dockerfile.ui
     container_name: ui
     environment:
-      - BACKEND_URL=http://backend:8000
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      BACKEND_URL: http://backend:8000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     depends_on:
       - backend
       - mlflow

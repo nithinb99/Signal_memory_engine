@@ -1,0 +1,20 @@
+# dockerfile.mlflow
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends wget \
+ && rm -rf /var/lib/apt/lists/* \
+ && python -m pip install --upgrade pip \
+ && pip install mlflow \
+ && mkdir -p /mlruns
+
+EXPOSE 5000
+
+CMD mlflow server \
+    --backend-store-uri sqlite:///mlflow.db \
+    --host 0.0.0.0 \
+    --port 5000 \
+    --artifacts-destination ./mlflow_server/artifacts \
+    --serve-artifacts
