@@ -1,17 +1,31 @@
-# start from a slim Python image
-FROM python:3.10-slim
+FROM mambaorg/micromamba:1.5.10-jammy
 
+ENV MAMBA_DOCKERFILE_ACTIVATE=1
 WORKDIR /app
 
-# install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Create the conda env
+COPY environment.yml /tmp/environment.yml
+RUN micromamba create -y -f /tmp/environment.yml && micromamba clean -a -y
 
-# copy your code
-COPY . .
+ARG ENV_NAME=sme310
+ENV CONDA_DEFAULT_ENV=${ENV_NAME}
+ENV PATH=/opt/conda/envs/${ENV_NAME}/bin:$PATH
 
-# expose FastAPI port
+# Lock-based install
+COPY requirements-lock.txt ./
+RUN micromamba run -n ${ENV_NAME} python -m pip install --upgrade pip && \
+    micromamba run -n ${ENV_NAME} pip install --no-cache-dir -r requirements-lock.txt
+
+# Ensure files are owned by the runtime user
+USER root
+COPY --chown=mambauser:mambauser . /app
+RUN chmod -R a+rX /app
+USER mambauser
+
 EXPOSE 8000
 
-# run uvicorn
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# container-level healthcheck using the CLI
+HEALTHCHECK --interval=10s --timeout=3s --retries=10 \
+  CMD python scripts/sme_healthcheck.py || exit 1
+
+CMD ["bash", "-lc", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
